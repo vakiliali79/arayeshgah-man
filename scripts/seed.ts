@@ -8,7 +8,7 @@
 import { assertSafeLocalDatabase, requireEnv } from "./env";
 import { sql } from "drizzle-orm";
 import { createDb, type Database } from "../src/db/client";
-import { favorites, profiles, users } from "../src/db/schema";
+import { favorites, profiles, salons as salonsTable, users } from "../src/db/schema";
 import type { UserRole } from "../src/db/types";
 import type { Actor } from "../src/server/auth/actor";
 import {
@@ -73,7 +73,7 @@ async function main() {
     await db.execute(sql`
       TRUNCATE users, sessions, accounts, verifications, profiles, files, salons, salon_members, stylists,
                services, stylist_services, working_hours, working_time_off, bookings, booking_events,
-               reviews, portfolio_items, favorites, notifications
+               reviews, portfolio_items, favorites, notifications, support_tickets, subscription_plans, site_settings
       RESTART IDENTITY CASCADE`);
 
     console.log("• users");
@@ -121,6 +121,9 @@ async function main() {
       name: "خانه زیبایی مهرو", slug: "mahroo", city: "تهران", address: "پاسداران، گلستان پنجم، پلاک ۸",
       phone: "02122000003",
     });
+
+    // سالن‌های نمونه توسعه از قبل «تأییدشده» هستند (در محیط واقعی ادمین تأیید می‌کند)
+    await db.update(salonsTable).set({ isVerified: true });
 
     console.log("• memberships (نگار عضو دو سالن است)");
     const join = async (owner: Actor, salonId: string, stylist: Actor) => {

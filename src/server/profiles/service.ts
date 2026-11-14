@@ -1,7 +1,18 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { DbOrTx } from "@/db/client";
-import { files, profiles } from "@/db/schema";
+import { files, profiles, users } from "@/db/schema";
+import { TEST_MODE_ADMIN_PHONE } from "../otp/config";
+import { AppError } from "../errors";
+
+/** شماره مدیر کل اصلی پلتفرم */
+export const SUPER_ADMIN_PHONE = TEST_MODE_ADMIN_PHONE;
+
+export class SuperAdminProtectedError extends AppError {
+  constructor() {
+    super("SUPER_ADMIN_PROTECTED", "The super admin role cannot be changed", 403);
+  }
+}
 import type { UserRole } from "@/db/types";
 import { isAdmin, type Actor } from "../auth/actor";
 import { ConflictError, ForbiddenError, NotFoundError, PG, findPgError } from "../errors";
@@ -84,6 +95,9 @@ export async function adminSetUserRole(db: DbOrTx, actor: Actor, input: unknown)
   if (!isAdmin(actor)) throw new ForbiddenError();
   const { userId, role } = parseInput(adminSetRoleSchema, input);
   if (userId === actor.userId) throw new ForbiddenError("Admins cannot change their own role");
+  // مدیر کل اصلی (۰۹۹۹۱۷۹۷۹۸۲) در هیچ حالتی قابل تغییر نقش نیست
+  const [target] = await db.select({ phone: users.phoneNumber }).from(users).where(eq(users.id, userId)).limit(1);
+  if (target?.phone === SUPER_ADMIN_PHONE) throw new SuperAdminProtectedError();
   const updated = await db
     .update(profiles)
     .set({ role, roleSelectedAt: new Date() })
