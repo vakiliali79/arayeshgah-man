@@ -1,13 +1,18 @@
+import { db } from "@/db";
 import { Categories, FeaturedSalons, ForBusiness, Hero, HowItWorks, TopStylists } from "@/features/home";
+import { getHomeData } from "@/server/public/home";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const d = await getHomeData(db);
   return (
     <>
-      <Hero />
-      <Categories />
-      <FeaturedSalons />
+      <Hero salonCount={d.salonCount} stylistCount={d.stylistCount} avgRating={d.avgRating} />
+      <Categories items={d.categories} />
+      <FeaturedSalons salons={d.featuredSalons} />
       <HowItWorks />
-      <TopStylists />
+      <TopStylists stylists={d.topStylists} />
       <ForBusiness />
     </>
   );

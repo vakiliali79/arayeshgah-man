@@ -4,8 +4,8 @@ import { isAuthTestMode, TEST_MODE_OTP } from "@/server/otp/config";
 import { toPersianDigits } from "@/lib/utils";
 
 const highlights = [
-  { Icon: SparkleIcon, text: "دسترسی به بیش از ۱۲۰۰ سالن منتخب" },
-  { Icon: StarIcon, text: "نظرات واقعی و نمونه‌کارهای تأییدشده" },
+  { Icon: SparkleIcon, text: "سالن‌ها و آرایشگران تأییدشده در یک‌جا" },
+  { Icon: StarIcon, text: "نظرات فقط از مشتریانی که نوبتشان انجام شده" },
   { Icon: ShieldIcon, text: "حفاظت کامل از اطلاعات شخصی شما" },
 ];
 

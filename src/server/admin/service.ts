@@ -142,7 +142,7 @@ export async function listAllBookings(db: DbOrTx, actor: Actor, filter: { status
 /** نظرات برای مدیریت؛ گزارش‌شده‌ها با تعداد گزارش باز */
 export async function listReviewsAdmin(db: DbOrTx, actor: Actor, filter: { view?: string }) {
   assertAdmin(actor);
-  const reports = sql<number>`(select count(*)::int from ${supportTickets} t where t.review_id = ${reviews.id} and t.kind = 'review_report' and t.status in ('open','in_progress'))`;
+  const reports = sql<number>`(select count(*)::int from ${supportTickets} t where t.review_id = "reviews"."id" and t.kind = 'review_report' and t.status in ('open','in_progress'))`;
   const cond = filter.view === "hidden" ? eq(reviews.isHidden, true) : filter.view === "reported" ? sql`${reports} > 0` : undefined;
   return db
     .select({

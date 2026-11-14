@@ -14,7 +14,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: { default: `${siteConfig.name} | رزرو آنلاین خدمات زیبایی`, template: `%s | ${siteConfig.name}` },
   description: siteConfig.description,
-  openGraph: { locale: siteConfig.locale, siteName: siteConfig.name, type: "website" },
+  openGraph: {
+    locale: siteConfig.locale,
+    siteName: siteConfig.name,
+    type: "website",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "آرایشگاه من — رزرو آنلاین خدمات زیبایی" }],
+  },
+  twitter: { card: "summary_large_image", images: ["/og-image.png"] },
 };
 
 export const viewport: Viewport = {

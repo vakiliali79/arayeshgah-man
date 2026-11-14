@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { CalendarIcon, CheckIcon, StoreIcon, UserIcon } from "@/components/icons";
 import { buttonVariants } from "@/components/ui";
-import { ROUTES } from "@/config/routes";
 
 const perks = ["تقویم هوشمند و جلوگیری از تداخل نوبت", "مدیریت پرسنل، خدمات و قیمت‌ها", "صفحه اختصاصی و نمایش نمونه‌کار", "گزارش درآمد و رضایت مشتریان"];
 
@@ -24,18 +23,18 @@ export function ForBusiness() {
             </ul>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Link href={`${ROUTES.register}?role=salon_owner`} className="rounded-lg bg-white/8 p-5 ring-1 ring-white/15 transition hover:bg-white/12">
+            <Link href="/register-salon" className="rounded-lg bg-white/8 p-5 ring-1 ring-white/15 transition hover:bg-white/12">
               <StoreIcon size={26} className="mb-3 text-gold-300" />
               <p className="font-bold">ثبت سالن</p>
               <p className="mt-1 text-xs text-primary-200">برای صاحبان سالن زیبایی</p>
             </Link>
-            <Link href={`${ROUTES.register}?role=stylist`} className="rounded-lg bg-white/8 p-5 ring-1 ring-white/15 transition hover:bg-white/12">
+            <Link href="/join-as-stylist" className="rounded-lg bg-white/8 p-5 ring-1 ring-white/15 transition hover:bg-white/12">
               <UserIcon size={26} className="mb-3 text-gold-300" />
               <p className="font-bold">همکاری آرایشگر</p>
               <p className="mt-1 text-xs text-primary-200">برای آرایشگران مستقل یا عضو سالن</p>
             </Link>
-            <Link href={ROUTES.register} className={buttonVariants({ variant: "gold", size: "lg", className: "sm:col-span-2" })}>
-              <CalendarIcon size={18} /> شروع رایگان
+            <Link href="/businesses" className={buttonVariants({ variant: "gold", size: "lg", className: "sm:col-span-2" })}>
+              <CalendarIcon size={18} /> آشنایی با امکانات کسب‌وکارها
             </Link>
           </div>
         </div>

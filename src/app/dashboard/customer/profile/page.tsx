@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { Avatar, Card, CardContent, CardDescription, CardHeader, CardTitle, FormField, Input } from "@/components/ui";
+import { Avatar, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { ActionForm } from "@/components/ui/action-form";
 import { ROLE_META } from "@/config/roles";
-import { updateProfileAction, uploadAvatarAction } from "@/features/dashboard/actions/customer";
+import { uploadAvatarAction } from "@/features/dashboard/actions/customer";
+import { CustomerProfileForm } from "@/features/dashboard/components/profile-forms";
 import { fileUrl } from "@/lib/files";
 import { requireSession } from "@/server/auth/current";
 import { formatPhoneForDisplay } from "@/server/otp/phone";
@@ -46,21 +47,7 @@ export default async function CustomerProfilePage() {
       <Card>
         <CardHeader><CardTitle className="text-base">اطلاعات شخصی</CardTitle></CardHeader>
         <CardContent>
-          <ActionForm action={updateProfileAction} submitLabel="ذخیره تغییرات">
-            {(state) => (
-              <>
-                <FormField id="fullName" label="نام و نام خانوادگی" error={state.fieldErrors?.fullName}>
-                  <Input id="fullName" name="fullName" defaultValue={profile.fullName ?? ""} maxLength={80} required />
-                </FormField>
-                <FormField id="phone" label="شماره تماس" hint="برای هماهنگی نوبت (می‌تواند با موبایل ورود متفاوت باشد)" error={state.fieldErrors?.phone}>
-                  <Input id="phone" name="phone" type="tel" dir="ltr" inputMode="tel" defaultValue={profile.phone ?? ""} placeholder="09121234567" />
-                </FormField>
-                <FormField id="city" label="شهر" error={state.fieldErrors?.city}>
-                  <Input id="city" name="city" defaultValue={profile.city ?? ""} maxLength={60} />
-                </FormField>
-              </>
-            )}
-          </ActionForm>
+          <CustomerProfileForm fullName={profile.fullName ?? ""} phone={profile.phone ?? ""} city={profile.city ?? ""} />
         </CardContent>
       </Card>
     </div>
