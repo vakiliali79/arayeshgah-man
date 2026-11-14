@@ -4,6 +4,7 @@
 
 - معماری دیتابیس، مایگریشن، seed: [docs/database.md](docs/database.md)
 - احراز هویت و امنیت: [docs/auth.md](docs/auth.md)
+- داشبوردها، صفحات عمومی، جستجو و رزرو (مسیرها، نقش‌ها، راهنمای تست دستی): [docs/marketplace.md](docs/marketplace.md)
 
 ## اجرای محلی
 
@@ -29,7 +30,7 @@ npm run dev                         # http://localhost:3000
 | `npm run lint` / `npm run typecheck` | ESLint و بررسی تایپ |
 | `npm run db:migrate` / `npm run db:seed` | مایگریشن و داده نمونه |
 | `npm test` | تست‌های واحد و یکپارچه با PostgreSQL (`.env.test.local` → `DATABASE_URL_TEST`) |
-| `npm run test:e2e` | تست end-to-end احراز هویت با مرورگر (پس از `npm run build`) |
+| `npm run test:e2e` | تست end-to-end با مرورگر: احراز هویت، رزرو کامل، دسترسی نقش‌ها، لینک‌های شکسته (پس از `npm run build`) |
 | `npm run db:create-admin -- <موبایل>` | ارتقای کاربر به ادمین (تنها راه ساخت ادمین) |
 
 ## ساختار پوشه‌ها
@@ -37,12 +38,13 @@ npm run dev                         # http://localhost:3000
 ```
 src/
   app/                 مسیرها (App Router)
-    (marketing)/       صفحه اصلی
+    (marketing)/       صفحه اصلی، صفحات محتوایی، جستجو و جزئیات سالن/آرایشگر، رزرو (/book)
     (auth)/            ورود و ثبت‌نام با موبایل + OTP
     api/auth/[...all]/ endpointهای Better Auth
-    dashboard/         داشبورد (محافظت‌شده)
+    dashboard/         داشبورد نقش‌ها: customer، stylist، salon، admin (محافظت‌شده سمت سرور)
+    api/files/[id]/    نمایش تصاویر عمومی
   components/          سیستم طراحی (ui)، layout، icons
-  features/            ماژول‌های UI دامنه: auth، home
+  features/            ماژول‌های UI دامنه: auth، home، dashboard، public
   db/                  اسکیمای Drizzle، اتصال و تایپ‌ها
   server/              سرویس‌های سمت سرور: auth، otp، bookings، salons، storage، …
   lib/                 utils و کلاینت Better Auth

@@ -70,10 +70,12 @@ describe("phone OTP auth end-to-end (production build, real browser)", () => {
     await expectText(page.locator("[data-testid=otp-phone]"), "۰۹۱۲ ۱۱۱ ۲۲۳۳");
     await typeCode(page, "1111");
     await page.click("button:has-text('تأیید و ساخت حساب')");
-    await page.waitForURL(/\/dashboard\?welcome=registered/);
+    // هدایت به داشبورد نقش (آرایشگر) با پیام موفقیت و فرم ساخت پروفایل حرفه‌ای
+    await page.waitForURL(/\/dashboard\/stylist\?welcome=registered/);
     await expectText(page.locator("main"), "ثبت‌نام شما با موفقیت انجام شد");
-    await expectText(page.locator("main"), "نگار احمدی");
-    await expectText(page.locator("main"), "آرایشگر");
+    await expectText(page.locator("main"), "پروفایل حرفه‌ای خود را بسازید");
+    await expectText(page.locator("aside"), "نگار احمدی");
+    await expectText(page.locator("aside"), "آرایشگر");
 
     const session = (await ctx.cookies()).find((c) => c.name.endsWith("arayeshgah.session_token"));
     expect(session?.httpOnly).toBe(true);
@@ -86,13 +88,14 @@ describe("phone OTP auth end-to-end (production build, real browser)", () => {
 
   it("the session persists and a signed-in user skips the login page", async () => {
     await page.goto(`${BASE}/dashboard`);
-    await expectText(page.locator("main"), "نگار احمدی");
+    await page.waitForURL(`${BASE}/dashboard/stylist`);
+    await expectText(page.locator("aside"), "نگار احمدی");
     await page.goto(`${BASE}/login`);
-    await page.waitForURL(`${BASE}/dashboard`);
+    await page.waitForURL(/\/dashboard/);
   });
 
   it("logs out and loses access to the dashboard", async () => {
-    await page.click("text=خروج");
+    await page.click("aside >> text=خروج از حساب");
     await page.waitForURL(/\/login/);
     await page.goto(`${BASE}/dashboard`);
     expect(new URL(page.url()).pathname).toBe("/login");
@@ -126,13 +129,15 @@ describe("phone OTP auth end-to-end (production build, real browser)", () => {
     await page.click("button[type=submit]");
     await typeCode(page, "1111");
     await page.click("button:has-text('ورود به حساب')");
-    await page.waitForURL(`${BASE}/dashboard`);
-    await expectText(page.locator("main"), "نگار احمدی");
-    await page.click("text=خروج");
+    await page.waitForURL(`${BASE}/dashboard/stylist`);
+    await expectText(page.locator("aside"), "نگار احمدی");
+    await page.click("aside >> text=خروج از حساب");
     await page.waitForURL(/\/login/);
   });
 
   it("a tampered registration form cannot create an admin", async () => {
+    const countAdmins = () => withDb(async (db) => (await db.select().from(profiles).where(eq(profiles.role, "admin"))).length);
+    const adminsBefore = await countAdmins();
     const c = await browser.newContext({ extraHTTPHeaders: { "x-real-ip": ALLOWED_IP } });
     const p = await c.newPage();
     await p.goto(`${BASE}/register`, { waitUntil: "networkidle" });
@@ -152,9 +157,9 @@ describe("phone OTP auth end-to-end (production build, real browser)", () => {
 
     const counts = await withDb(async (db) => ({
       attacker: (await db.select().from(users).where(eq(users.phoneNumber, "+989125556677"))).length,
-      admins: (await db.select().from(profiles).where(eq(profiles.role, "admin"))).length,
     }));
-    expect(counts).toEqual({ attacker: 0, admins: 0 });
+    expect(counts).toEqual({ attacker: 0 });
+    expect(await countAdmins()).toBe(adminsBefore); // هیچ ادمین جدیدی ساخته نشده
   });
 
   it("static OTP is unavailable to clients outside the allow-list", async () => {

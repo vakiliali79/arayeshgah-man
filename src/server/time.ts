@@ -11,3 +11,6 @@ export function isValidTimeZone(tz: string): boolean {
 
 export const MINUTE_MS = 60_000;
 export const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * MINUTE_MS);
+
+/** زمان فعلی (نقطه واحد برای صفحات سرور؛ قابل تعویض در تست) */
+export const currentTime = () => new Date();

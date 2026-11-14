@@ -1,7 +1,18 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { DbOrTx } from "@/db/client";
-import { profiles } from "@/db/schema";
+import { files, profiles, users } from "@/db/schema";
+import { TEST_MODE_ADMIN_PHONE } from "../otp/config";
+import { AppError } from "../errors";
+
+/** شماره مدیر کل اصلی پلتفرم */
+export const SUPER_ADMIN_PHONE = TEST_MODE_ADMIN_PHONE;
+
+export class SuperAdminProtectedError extends AppError {
+  constructor() {
+    super("SUPER_ADMIN_PROTECTED", "The super admin role cannot be changed", 403);
+  }
+}
 import type { UserRole } from "@/db/types";
 import { isAdmin, type Actor } from "../auth/actor";
 import { ConflictError, ForbiddenError, NotFoundError, PG, findPgError } from "../errors";
@@ -84,6 +95,9 @@ export async function adminSetUserRole(db: DbOrTx, actor: Actor, input: unknown)
   if (!isAdmin(actor)) throw new ForbiddenError();
   const { userId, role } = parseInput(adminSetRoleSchema, input);
   if (userId === actor.userId) throw new ForbiddenError("Admins cannot change their own role");
+  // مدیر کل اصلی (۰۹۹۹۱۷۹۷۹۸۲) در هیچ حالتی قابل تغییر نقش نیست
+  const [target] = await db.select({ phone: users.phoneNumber }).from(users).where(eq(users.id, userId)).limit(1);
+  if (target?.phone === SUPER_ADMIN_PHONE) throw new SuperAdminProtectedError();
   const updated = await db
     .update(profiles)
     .set({ role, roleSelectedAt: new Date() })
@@ -112,4 +126,13 @@ export async function updateOwnProfile(db: DbOrTx, actor: Actor, input: unknown)
     if (findPgError(err)?.code === PG.UNIQUE_VIOLATION) throw new ConflictError("PHONE_TAKEN", "Phone number is already in use");
     throw err;
   }
+}
+
+/** تنظیم تصویر پروفایل خود کاربر (فایل باید متعلق به خودش و از نوع avatar باشد) */
+export async function setOwnAvatar(db: DbOrTx, actor: Actor, fileId: string | null) {
+  if (fileId) {
+    const [file] = await db.select().from(files).where(and(eq(files.id, fileId), isNull(files.deletedAt))).limit(1);
+    if (!file || file.ownerId !== actor.userId || file.purpose !== "avatar") throw new ForbiddenError();
+  }
+  await db.update(profiles).set({ avatarFileId: fileId }).where(eq(profiles.userId, actor.userId));
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Database, Transaction } from "@/db/client";
 import { bookings, notifications, reviews, salons, stylists } from "@/db/schema";
 import type { Actor } from "../auth/actor";
+import { hasSalonPermission } from "../auth/permissions";
 import { BusinessRuleError, ConflictError, ForbiddenError, NotFoundError, PG, findPgError } from "../errors";
 import { parseInput } from "../validation";
 
@@ -14,7 +15,7 @@ const createReviewSchema = z
   })
   .strict();
 
-async function refreshRatings(tx: Transaction, stylistId: string, salonId: string | null) {
+export async function refreshRatings(tx: Transaction, stylistId: string, salonId: string | null) {
   await tx
     .update(stylists)
     .set({
@@ -71,4 +72,35 @@ export async function createReview(db: Database, actor: Actor, input: unknown) {
     if (findPgError(err)?.code === PG.UNIQUE_VIOLATION) throw new ConflictError("ALREADY_REVIEWED", "This booking has already been reviewed");
     throw err;
   }
+}
+
+const replySchema = z.object({ reviewId: z.uuid(), reply: z.string().trim().min(2).max(2000) }).strict();
+
+/** پاسخ به نظر: آرایشگر همان نوبت، دارنده manage_salon سالن، یا ادمین */
+export async function replyToReview(db: Database, actor: Actor, input: unknown) {
+  const { reviewId, reply } = parseInput(replySchema, input);
+  return db.transaction(async (tx) => {
+    const [review] = await tx.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
+    if (!review) throw new NotFoundError("Review");
+    let allowed = actor.role === "admin";
+    if (!allowed) {
+      const [st] = await tx.select({ userId: stylists.userId }).from(stylists).where(eq(stylists.id, review.stylistId)).limit(1);
+      allowed = st?.userId === actor.userId;
+    }
+    if (!allowed && review.salonId) allowed = await hasSalonPermission(tx, actor, review.salonId, "manage_salon");
+    if (!allowed) throw new ForbiddenError();
+    const [row] = await tx.update(reviews).set({ reply, repliedAt: new Date() }).where(eq(reviews.id, reviewId)).returning();
+    return row!;
+  });
+}
+
+/** پنهان/نمایش نظر نامناسب — فقط ادمین؛ امتیازها دوباره محاسبه می‌شوند */
+export async function setReviewHidden(db: Database, actor: Actor, input: { reviewId: string; hidden: boolean }) {
+  if (actor.role !== "admin") throw new ForbiddenError();
+  return db.transaction(async (tx) => {
+    const [row] = await tx.update(reviews).set({ isHidden: input.hidden }).where(eq(reviews.id, input.reviewId)).returning();
+    if (!row) throw new NotFoundError("Review");
+    await refreshRatings(tx, row.stylistId, row.salonId);
+    return row;
+  });
 }

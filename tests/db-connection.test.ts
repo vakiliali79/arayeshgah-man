@@ -13,7 +13,7 @@ describe("database connection", () => {
 
   it("has all migrations applied", async () => {
     const res = await db.execute<{ n: number }>(sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
-    expect(res.rows[0]?.n).toBe(4);
+    expect(res.rows[0]?.n).toBe(5);
   });
 
   it("has the phone login columns with uniqueness and format constraints on users", async () => {
@@ -43,14 +43,15 @@ describe("database connection", () => {
     ]);
   });
 
-  it("creates all 19 tables (4 Better Auth + 15 application)", async () => {
+  it("creates all 23 tables (4 Better Auth + 19 application)", async () => {
     const res = await db.execute<{ table_name: string }>(
       sql`select table_name from information_schema.tables where table_schema = 'public' order by 1`,
     );
     expect(res.rows.map((r) => r.table_name)).toEqual([
       "accounts", "booking_events", "bookings", "favorites", "files", "notifications", "portfolio_items",
-      "profiles", "reviews", "salon_members", "salons", "services", "sessions", "stylist_services",
-      "stylists", "users", "verifications", "working_hours", "working_time_off",
+      "profiles", "reviews", "salon_members", "salons", "service_categories", "services", "sessions",
+      "site_settings", "stylist_services", "stylists", "subscription_plans", "support_tickets", "users",
+      "verifications", "working_hours", "working_time_off",
     ]);
   });
 });

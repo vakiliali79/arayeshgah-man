@@ -39,6 +39,8 @@ export const bookings = pgTable(
     durationMinutes: smallint("duration_minutes").notNull(),
     bufferMinutes: smallint("buffer_minutes").notNull().default(0),
     priceToman: bigint("price_toman", { mode: "number" }).notNull(),
+    /** کد پیگیری قابل نمایش به مشتری (مثل AM-7K3P9QXZ) */
+    trackingCode: text("tracking_code").notNull().unique(),
     /** منطقه زمانی محل ارائه خدمت در زمان رزرو */
     timezone: text("timezone").notNull(),
     customerNote: text("customer_note"),

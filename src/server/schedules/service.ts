@@ -72,3 +72,23 @@ export async function addTimeOff(db: Database, actor: Actor, input: unknown) {
     return row!;
   });
 }
+
+/** حذف یک شیفت (همان قواعد دسترسی افزودن) */
+export async function deleteWorkingHours(db: Database, actor: Actor, id: string) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(workingHours).where(eq(workingHours.id, id)).limit(1);
+    if (!row) throw new NotFoundError("Working hours");
+    await assertScheduleAccess(tx, actor, row.salonId ?? undefined, row.stylistId ?? undefined);
+    await tx.delete(workingHours).where(eq(workingHours.id, id));
+  });
+}
+
+/** حذف تعطیلی/مرخصی (همان قواعد دسترسی افزودن) */
+export async function deleteTimeOff(db: Database, actor: Actor, id: string) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(workingTimeOff).where(eq(workingTimeOff.id, id)).limit(1);
+    if (!row) throw new NotFoundError("Time off");
+    await assertScheduleAccess(tx, actor, row.salonId ?? undefined, row.stylistId ?? undefined);
+    await tx.delete(workingTimeOff).where(eq(workingTimeOff.id, id));
+  });
+}

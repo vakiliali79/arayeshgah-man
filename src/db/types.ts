@@ -19,6 +19,12 @@ export type PortfolioItem = InferSelectModel<typeof s.portfolioItems>;
 export type Favorite = InferSelectModel<typeof s.favorites>;
 export type Notification = InferSelectModel<typeof s.notifications>;
 export type StoredFile = InferSelectModel<typeof s.files>;
+export type SupportTicket = InferSelectModel<typeof s.supportTickets>;
+export type SubscriptionPlan = InferSelectModel<typeof s.subscriptionPlans>;
+export type ServiceCategoryRow = InferSelectModel<typeof s.serviceCategories>;
+export type ServiceCategory = (typeof s.serviceCategory.enumValues)[number];
+export type TicketKind = (typeof s.ticketKind.enumValues)[number];
+export type TicketStatus = (typeof s.ticketStatus.enumValues)[number];
 
 export type UserRole = (typeof s.userRole.enumValues)[number];
 export type SalonMemberRole = (typeof s.salonMemberRole.enumValues)[number];

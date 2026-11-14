@@ -54,7 +54,7 @@ describe("schema constraints", () => {
       db.insert(bookings).values({
         customerId: c.userId, stylistId: s.stylist.id, salonId: s.salon.id, serviceId: s.service.id,
         startsAt: new Date(at(SUNDAY, "10:00")), endsAt: new Date(at(SUNDAY, "10:30")), blockedUntil: new Date(at(SUNDAY, "10:30")),
-        serviceName: "x", durationMinutes: 60, bufferMinutes: 0, priceToman: 1, timezone: "Asia/Tehran",
+        serviceName: "x", durationMinutes: 60, bufferMinutes: 0, priceToman: 1, timezone: "Asia/Tehran", trackingCode: "AM-TEST000001",
       }),
     );
     expect(e).toMatchObject({ code: "23514", constraint: "bookings_duration_matches" });

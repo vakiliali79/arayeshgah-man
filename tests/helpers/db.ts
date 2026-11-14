@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { createDb, type Database } from "@/db/client";
 import { profiles, users } from "@/db/schema";
@@ -26,7 +27,7 @@ export async function resetDb(db: Database = getTestDb()) {
   await db.execute(sql`
     TRUNCATE users, sessions, accounts, verifications, profiles, files, salons, salon_members, stylists,
              services, stylist_services, working_hours, working_time_off, bookings, booking_events,
-             reviews, portfolio_items, favorites, notifications
+             reviews, portfolio_items, favorites, notifications, support_tickets, subscription_plans, site_settings
     RESTART IDENTITY CASCADE`);
 }
 
@@ -62,7 +63,7 @@ export async function makeSalonScenario(db: Database) {
   const stylist = await createStylistProfile(db, stylistUser, { displayName: "آرایشگر تست" });
   const salon = await createSalon(db, owner, {
     name: "سالن تست",
-    slug: `salon-${++seq}`,
+    slug: `salon-${++seq}-${randomBytes(3).toString("hex")}`, // یکتا بین فایل‌های تست روی دیتابیس مشترک e2e
     city: "تهران",
     address: "خیابان تست، پلاک ۱",
   });

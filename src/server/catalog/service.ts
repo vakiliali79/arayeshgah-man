@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { serviceCategory, services, stylistServices, stylists } from "@/db/schema";
@@ -79,5 +79,68 @@ export async function assignServiceToStylist(db: Database, actor: Actor, input: 
       })
       .returning();
     return row!;
+  });
+}
+
+const updateServiceSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    description: z.string().trim().max(1000).nullable().optional(),
+    category: z.enum(serviceCategory.enumValues).optional(),
+    durationMinutes: duration.optional(),
+    bufferMinutes: z.number().int().min(0).max(120).optional(),
+    priceToman: price.optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
+/** دسترسی ویرایش خدمت: خدمت سالن ← manage_services؛ خدمت مستقل ← خود آرایشگر یا ادمین */
+async function assertServiceAccess(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], actor: Actor, serviceId: string) {
+  const [service] = await tx.select().from(services).where(eq(services.id, serviceId)).limit(1);
+  if (!service) throw new NotFoundError("Service");
+  if (service.salonId) {
+    await assertSalonPermission(tx, actor, service.salonId, "manage_services");
+  } else {
+    const [stylist] = await tx.select().from(stylists).where(eq(stylists.id, service.stylistId!)).limit(1);
+    if (!stylist || (stylist.userId !== actor.userId && !isAdmin(actor))) throw new ForbiddenError();
+  }
+  return service;
+}
+
+/** ویرایش خدمت (قیمت و مدت نوبت‌های قبلی تغییر نمی‌کند؛ در نوبت‌ها اسنپ‌شات شده‌اند) */
+export async function updateService(db: Database, actor: Actor, serviceId: string, input: unknown) {
+  const data = parseInput(updateServiceSchema, input);
+  return db.transaction(async (tx) => {
+    await assertServiceAccess(tx, actor, serviceId);
+    const [row] = await tx.update(services).set(data).where(eq(services.id, serviceId)).returning();
+    return row!;
+  });
+}
+
+/**
+ * فعال/غیرفعال کردن ارائه یک خدمت توسط یک آرایشگر:
+ * - خدمت مستقل: خود آرایشگر (یا ادمین)
+ * - خدمت سالن: کاربر دارای manage_services؛ خود آرایشگر فقط می‌تواند ارائه را متوقف کند (نه فعال)
+ */
+export async function setStylistServiceActive(db: Database, actor: Actor, input: { stylistId: string; serviceId: string; isActive: boolean }) {
+  return db.transaction(async (tx) => {
+    const [service] = await tx.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
+    const [stylist] = await tx.select().from(stylists).where(eq(stylists.id, input.stylistId)).limit(1);
+    if (!service || !stylist) throw new NotFoundError("Service");
+    const isSelf = stylist.userId === actor.userId;
+
+    if (service.salonId) {
+      if (!(isSelf && !input.isActive)) await assertSalonPermission(tx, actor, service.salonId, "manage_services");
+    } else if (service.stylistId !== stylist.id || (!isSelf && !isAdmin(actor))) {
+      throw new ForbiddenError();
+    }
+
+    const [row] = await tx
+      .update(stylistServices)
+      .set({ isActive: input.isActive })
+      .where(and(eq(stylistServices.stylistId, input.stylistId), eq(stylistServices.serviceId, input.serviceId)))
+      .returning();
+    if (!row) throw new NotFoundError("Assignment");
+    return row;
   });
 }
