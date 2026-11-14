@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { profiles, users } from "@/db/schema";
 import { loadActor } from "@/server/auth/actor";
 import { createAuth } from "@/server/auth/better-auth";
+import { MemoryMailer } from "@/server/mail/mailer";
 import { ForbiddenError, UnauthorizedError, ValidationError } from "@/server/errors";
 import { adminSetUserRole, selectInitialRole, updateOwnProfile } from "@/server/profiles/service";
 import { createSalon } from "@/server/salons/service";
@@ -16,7 +17,7 @@ describe("user roles & privilege escalation", () => {
   afterAll(closeTestDb);
 
   it("Better Auth sign-up creates a customer profile even if 'admin' is submitted", async () => {
-    const auth = createAuth(db);
+    const auth = createAuth(db, { mailer: new MemoryMailer() });
     // Better Auth فیلد ناشناخته role را نادیده می‌گیرد؛ نقش فقط از جدول profiles می‌آید
     await auth.api.signUpEmail({
       body: { name: "مهاجم", email: "attacker@test.local", password: "Password123", role: "admin" } as never,
@@ -30,7 +31,7 @@ describe("user roles & privilege escalation", () => {
   });
 
   it("Better Auth sign-up hook creates exactly one customer profile", async () => {
-    const auth = createAuth(db);
+    const auth = createAuth(db, { mailer: new MemoryMailer() });
     await auth.api.signUpEmail({ body: { name: "مشتری جدید", email: "new@test.local", password: "Password123" } });
     const [user] = await db.select().from(users).where(eq(users.email, "new@test.local"));
     const rows = await db.select().from(profiles).where(eq(profiles.userId, user!.id));

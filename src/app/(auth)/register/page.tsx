@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { SELF_ASSIGNABLE_ROLES, type SelfAssignableRole } from "@/config/roles";
+import { ROUTES } from "@/config/routes";
 import { RegisterForm } from "@/features/auth";
+import { getCurrentSession } from "@/server/auth/current";
 
 export const metadata: Metadata = { title: "ثبت‌نام" };
 
@@ -10,6 +13,7 @@ function parseRole(value: unknown): SelfAssignableRole | undefined {
 
 export default async function RegisterPage({ searchParams }: PageProps<"/register">) {
   const { role } = await searchParams;
+  if (await getCurrentSession()) redirect(ROUTES.dashboard);
 
   return (
     <>

@@ -2,25 +2,21 @@
 
 پلتفرم رزرو و مدیریت خدمات زیبایی — Next.js 16 · TypeScript · Tailwind CSS v4 · PostgreSQL · Drizzle ORM · Better Auth
 
-> لایه داده در حال مهاجرت از Supabase به PostgreSQL + Drizzle + Better Auth است. معماری دیتابیس، دستورات مایگریشن، seed و تست: [docs/database.md](docs/database.md)
+- معماری دیتابیس، مایگریشن، seed: [docs/database.md](docs/database.md)
+- احراز هویت و امنیت: [docs/auth.md](docs/auth.md)
 
-## اجرا
+## اجرای محلی
 
 ```bash
 npm install
-cp .env.example .env.local   # مقادیر Supabase را وارد کنید
-npm run dev                  # http://localhost:3000
+cp .env.example .env.local          # DATABASE_URL و BETTER_AUTH_SECRET را تنظیم کنید (npx auth secret)
+npm run db:migrate                  # ساخت جداول
+npm run db:seed                     # داده نمونه (رمز همه کاربران: Password123)
+npm run dev                         # http://localhost:3000
 ```
 
-صفحه اصلی بدون Supabase هم اجرا می‌شود؛ ورود و ثبت‌نام به تنظیم `.env.local` و اجرای مایگریشن نیاز دارند:
-
-```bash
-npx supabase login
-npx supabase link --project-ref <your-ref>
-npx supabase db push
-```
-
-در داشبورد Supabase، در Authentication → URL Configuration آدرس `http://localhost:3000/auth/callback` را به Redirect URLs اضافه کنید.
+ساخت دیتابیس PostgreSQL محلی و جزئیات بیشتر در [docs/database.md](docs/database.md).
+در توسعه، ایمیل‌های تأیید و بازیابی رمز به‌صورت فایل در `.data/mail/` ذخیره می‌شوند.
 
 ## اسکریپت‌ها
 
@@ -28,38 +24,30 @@ npx supabase db push
 | --- | --- |
 | `npm run dev` | سرور توسعه |
 | `npm run build` / `npm start` | بیلد و اجرای production |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | بررسی تایپ‌ها |
+| `npm run lint` / `npm run typecheck` | ESLint و بررسی تایپ |
 | `npm run db:migrate` / `npm run db:seed` | مایگریشن و داده نمونه |
-| `npm test` | تست‌های یکپارچه با PostgreSQL |
+| `npm test` | تست‌های واحد و یکپارچه با PostgreSQL (`.env.test.local` → `DATABASE_URL_TEST`) |
+| `npm run test:e2e` | تست end-to-end احراز هویت با مرورگر (پس از `npm run build`) |
+| `npm run db:create-admin -- <email>` | ارتقای کاربر به ادمین (تنها راه ساخت ادمین) |
 
 ## ساختار پوشه‌ها
 
 ```
 src/
   app/                 مسیرها (App Router)
-    (marketing)/       صفحه اصلی و صفحات عمومی + هدر/فوتر
-    (auth)/            ورود و ثبت‌نام
-    auth/callback/     تأیید ایمیل (PKCE)
+    (marketing)/       صفحه اصلی
+    (auth)/            ورود، ثبت‌نام، فراموشی/بازیابی رمز، تأیید ایمیل
+    api/auth/[...all]/ endpointهای Better Auth
     dashboard/         داشبورد (محافظت‌شده)
-  components/
-    ui/                سیستم طراحی: Button, Input, Card, Badge, Alert, ...
-    layout/            Header, Footer, MobileBottomNav
-    icons/             آیکون‌های SVG
-  features/            ماژول‌های دامنه (هر ماژول: components, actions, schemas)
-    auth/
-    home/
-  lib/
-    supabase/          کلاینت مرورگر، سرور و proxy
-    auth/              محافظ‌های سمت سرور (requireUser)
-    utils/             cn، ارقام فارسی، قالب‌بندی مبلغ
-  config/              نقش‌ها، مسیرها، اطلاعات سایت
-  types/               تایپ‌های دیتابیس
-  proxy.ts             تازه‌سازی نشست و محافظت مسیرها (جایگزین middleware در Next 16)
+  components/          سیستم طراحی (ui)، layout، icons
+  features/            ماژول‌های UI دامنه: auth، home
   db/                  اسکیمای Drizzle، اتصال و تایپ‌ها
-  server/              سرویس‌های دامنه (مجوز، اعتبارسنجی، تراکنش): bookings, salons, storage, …
+  server/              سرویس‌های سمت سرور: auth، bookings، salons، storage، mail، …
+  lib/                 utils و کلاینت Better Auth
+  config/              نقش‌ها، مسیرها، اطلاعات سایت
+  proxy.ts             هدایت مهمان‌ها از مسیرهای محافظت‌شده
 drizzle/               مایگریشن‌های PostgreSQL
-scripts/               migrate, seed, create-admin
-tests/                 تست‌های یکپارچه (Vitest)
-supabase/migrations/   (قدیمی) مایگریشن Supabase — پس از تکمیل مهاجرت حذف می‌شود
+scripts/               migrate، seed، create-admin
+tests/                 Vitest (واحد/یکپارچه) و tests/e2e (Playwright)
+docs/                  مستندات
 ```

@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import { Avatar, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from "@/components/ui";
 import { ROLE_META } from "@/config/roles";
 import { signOutAction } from "@/features/auth/actions";
-import { requireUser } from "@/lib/auth/session";
+import { requireSession } from "@/server/auth/current";
 
 export const metadata: Metadata = { title: "داشبورد" };
 export const dynamic = "force-dynamic";
 
 /** داشبورد موقت — داشبوردهای اختصاصی هر نقش در مراحل بعد ساخته می‌شوند */
 export default async function DashboardPage() {
-  const { user, profile } = await requireUser();
-  const name = profile?.full_name ?? user.email ?? "کاربر";
-  const role = profile?.role ?? "customer";
+  const { user, profile } = await requireSession();
+  const name = profile.fullName ?? user.name ?? user.email;
+  const role = profile.role;
 
   return (
     <div className="bg-luxe min-h-dvh">

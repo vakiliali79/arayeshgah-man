@@ -10,6 +10,14 @@ const email = z
   .max(254, "ایمیل بیش از حد طولانی است")
   .pipe(z.email("ایمیل معتبر نیست"));
 
+/** سیاست رمز عبور (برای ثبت‌نام و بازیابی) */
+const newPassword = z
+  .string()
+  .min(8, "رمز عبور حداقل ۸ کاراکتر باشد")
+  .max(72, "رمز عبور حداکثر ۷۲ کاراکتر باشد")
+  .regex(/[A-Za-z]/, "رمز عبور باید حداقل یک حرف انگلیسی داشته باشد")
+  .regex(/\d/, "رمز عبور باید حداقل یک عدد داشته باشد");
+
 export const loginSchema = z.object({
   email,
   password: z.string().min(1, "رمز عبور را وارد کنید").max(72),
@@ -22,18 +30,25 @@ export const registerSchema = z.object({
     .string()
     .transform((v) => toLatinDigits(v).replace(/[\s-]/g, ""))
     .pipe(z.string().regex(/^09\d{9}$/, "شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود")),
-  password: z
-    .string()
-    .min(8, "رمز عبور حداقل ۸ کاراکتر باشد")
-    .max(72, "رمز عبور حداکثر ۷۲ کاراکتر باشد")
-    .regex(/[A-Za-z]/, "رمز عبور باید حداقل یک حرف انگلیسی داشته باشد")
-    .regex(/\d/, "رمز عبور باید حداقل یک عدد داشته باشد"),
+  password: newPassword,
   role: z.enum(SELF_ASSIGNABLE_ROLES, "نوع حساب را انتخاب کنید"),
   terms: z.literal("on", "پذیرش قوانین الزامی است"),
 });
 
+export const forgotPasswordSchema = z.object({ email });
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(10, "لینک بازیابی نامعتبر است").max(512).regex(/^[A-Za-z0-9_-]+$/, "لینک بازیابی نامعتبر است"),
+    password: newPassword,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, { message: "تکرار رمز عبور مطابقت ندارد", path: ["confirmPassword"] });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 export type FieldErrors<T> = Partial<Record<keyof T, string>>;
 

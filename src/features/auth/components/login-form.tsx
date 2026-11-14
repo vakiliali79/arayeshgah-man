@@ -10,13 +10,15 @@ import { PasswordInput } from "./password-input";
 
 const initialState: AuthFormState<LoginInput> = { status: "idle" };
 
-export function LoginForm({ next, notice }: { next?: string; notice?: string }) {
+export type LoginNotice = { tone: "success" | "warning" | "danger"; text: string };
+
+export function LoginForm({ next, notice }: { next?: string; notice?: LoginNotice }) {
   const [state, formAction, pending] = useActionState(signInAction, initialState);
   const err = state.fieldErrors ?? {};
 
   return (
     <form action={formAction} noValidate className="space-y-5">
-      {notice && state.status === "idle" && <Alert tone="warning">{notice}</Alert>}
+      {notice && state.status === "idle" && <Alert tone={notice.tone}>{notice.text}</Alert>}
       {state.message && <Alert tone="danger">{state.message}</Alert>}
       <input type="hidden" name="next" value={next ?? ""} />
 
@@ -47,6 +49,12 @@ export function LoginForm({ next, notice }: { next?: string; notice?: string }) 
           required
         />
       </FormField>
+
+      <div className="-mt-2 text-start text-sm">
+        <Link href={ROUTES.forgotPassword} className="text-primary-700 hover:underline">
+          رمز عبور را فراموش کرده‌اید؟
+        </Link>
+      </div>
 
       <Button type="submit" size="lg" fullWidth loading={pending}>
         ورود به حساب
