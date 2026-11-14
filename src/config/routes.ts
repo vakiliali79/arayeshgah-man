@@ -4,9 +4,6 @@ export const ROUTES = {
   home: "/",
   login: "/login",
   register: "/register",
-  forgotPassword: "/forgot-password",
-  resetPassword: "/reset-password",
-  verifyEmail: "/verify-email",
   dashboard: "/dashboard",
 } as const;
 
@@ -14,7 +11,7 @@ export const ROUTES = {
 export const PROTECTED_PREFIXES = ["/dashboard"] as const;
 
 /** صفحات مهمان؛ اگر نشست معتبر باشد (بررسی سمت سرور در خود صفحه) به داشبورد هدایت می‌شود */
-export const GUEST_ONLY_ROUTES = [ROUTES.login, ROUTES.register, ROUTES.forgotPassword] as const;
+export const GUEST_ONLY_ROUTES = [ROUTES.login, ROUTES.register] as const;
 
 /**
  * دسترسی نقش‌ها به بخش‌های داشبورد — در مراحل بعد تکمیل می‌شود.

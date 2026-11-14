@@ -1,63 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-import { Alert, Button, FormField, Input } from "@/components/ui";
+import { useActionState, useState } from "react";
+import { Alert, Button, FormField } from "@/components/ui";
 import { ROUTES } from "@/config/routes";
-import { signInAction } from "../actions";
-import type { AuthFormState, LoginInput } from "../schemas";
-import { PasswordInput } from "./password-input";
-
-const initialState: AuthFormState<LoginInput> = { status: "idle" };
+import { requestLoginOtpAction, verifyLoginOtpAction } from "../actions";
+import type { OtpFormState } from "../schemas";
+import { OtpCodeStep } from "./otp-code-step";
+import { PhoneInput } from "./phone-input";
 
 export type LoginNotice = { tone: "success" | "warning" | "danger"; text: string };
 
-export function LoginForm({ next, notice }: { next?: string; notice?: LoginNotice }) {
-  const [state, formAction, pending] = useActionState(signInAction, initialState);
-  const err = state.fieldErrors ?? {};
+const initial: OtpFormState = { step: "phone", status: "idle" };
+
+function LoginFlow({ next, notice, initialPhone, onEdit }: { next?: string; notice?: LoginNotice; initialPhone?: string; onEdit: (phone?: string) => void }) {
+  const [requestState, requestAction, requesting] = useActionState(requestLoginOtpAction, initial);
+  const [verifyState, verifyAction, verifying] = useActionState(verifyLoginOtpAction, { ...initial, step: "code" } as OtpFormState);
+  const err = requestState.fieldErrors ?? {};
+
+  if (requestState.step === "code" && requestState.values?.phone) {
+    return (
+      <OtpCodeStep
+        values={requestState.values}
+        sentAt={requestState.sentAt}
+        verifyAction={verifyAction}
+        verifyState={verifyState}
+        verifying={verifying}
+        resendAction={requestAction}
+        resending={requesting}
+        onEdit={() => onEdit(requestState.values?.phone)}
+        submitLabel="ورود به حساب"
+        extraHidden={next ? { next } : undefined}
+      />
+    );
+  }
 
   return (
-    <form action={formAction} noValidate className="space-y-5">
-      {notice && state.status === "idle" && <Alert tone={notice.tone}>{notice.text}</Alert>}
-      {state.message && <Alert tone="danger">{state.message}</Alert>}
-      <input type="hidden" name="next" value={next ?? ""} />
+    <form action={requestAction} noValidate className="space-y-5">
+      {notice && requestState.status === "idle" && <Alert tone={notice.tone}>{notice.text}</Alert>}
+      {requestState.message && <Alert tone="danger">{requestState.message}</Alert>}
 
-      <FormField id="email" label="ایمیل" error={err.email}>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          dir="ltr"
-          autoComplete="email"
-          inputMode="email"
-          placeholder="name@example.com"
-          defaultValue={state.values?.email}
-          invalid={!!err.email}
-          aria-describedby={err.email ? "email-error" : undefined}
+      <FormField id="phone" label="شماره موبایل" error={err.phone} hint="کد تأیید ۴ رقمی به این شماره ارسال می‌شود">
+        <PhoneInput
+          id="phone"
+          name="phone"
+          defaultValue={requestState.values?.phone ?? initialPhone}
+          invalid={!!err.phone}
+          aria-describedby={err.phone ? "phone-error" : "phone-hint"}
+          autoFocus
           required
         />
       </FormField>
 
-      <FormField id="password" label="رمز عبور" error={err.password}>
-        <PasswordInput
-          id="password"
-          name="password"
-          autoComplete="current-password"
-          placeholder="••••••••"
-          invalid={!!err.password}
-          aria-describedby={err.password ? "password-error" : undefined}
-          required
-        />
-      </FormField>
-
-      <div className="-mt-2 text-start text-sm">
-        <Link href={ROUTES.forgotPassword} className="text-primary-700 hover:underline">
-          رمز عبور را فراموش کرده‌اید؟
-        </Link>
-      </div>
-
-      <Button type="submit" size="lg" fullWidth loading={pending}>
-        ورود به حساب
+      <Button type="submit" size="lg" fullWidth loading={requesting}>
+        دریافت کد ورود
       </Button>
 
       <p className="text-center text-sm text-muted">
@@ -67,5 +63,19 @@ export function LoginForm({ next, notice }: { next?: string; notice?: LoginNotic
         </Link>
       </p>
     </form>
+  );
+}
+
+/** ورود دومرحله‌ای: شماره موبایل → کد OTP. «ویرایش شماره» فرم را از نو و با همان شماره شروع می‌کند. */
+export function LoginForm({ next, notice }: { next?: string; notice?: LoginNotice }) {
+  const [attempt, setAttempt] = useState({ key: 0, phone: undefined as string | undefined });
+  return (
+    <LoginFlow
+      key={attempt.key}
+      next={next}
+      notice={attempt.key === 0 ? notice : undefined}
+      initialPhone={attempt.phone}
+      onEdit={(phone) => setAttempt((a) => ({ key: a.key + 1, phone }))}
+    />
   );
 }

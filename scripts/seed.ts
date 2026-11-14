@@ -3,13 +3,12 @@
  *
  * - همه داده‌های موجود را پاک می‌کند (TRUNCATE) — فقط روی دیتابیس محلی و غیر production اجرا می‌شود.
  * - تا حد ممکن از سرویس‌های واقعی دامنه استفاده می‌کند تا داده‌ها همان اعتبارسنجی‌های برنامه را پاس کنند.
- * - رمز همه کاربران نمونه: Password123  (فقط توسعه)
+ * - ورود با شماره موبایل و OTP؛ در توسعه کد ثابت AUTH_STATIC_OTP (پیش‌فرض 1111)
  */
 import { assertSafeLocalDatabase, requireEnv } from "./env";
-import { hashPassword } from "better-auth/crypto";
 import { sql } from "drizzle-orm";
 import { createDb, type Database } from "../src/db/client";
-import { accounts, favorites, profiles, users } from "../src/db/schema";
+import { favorites, profiles, users } from "../src/db/schema";
 import type { UserRole } from "../src/db/types";
 import type { Actor } from "../src/server/auth/actor";
 import {
@@ -25,7 +24,6 @@ import { acceptSalonInvitation, createSalon, inviteSalonMember } from "../src/se
 import { addTimeOff, addWorkingHours } from "../src/server/schedules/service";
 import { createStylistProfile } from "../src/server/stylists/service";
 
-const DEV_PASSWORD = "Password123";
 const TZ = "Asia/Tehran";
 // ایران از ۱۴۰۱ ساعت تابستانی ندارد؛ offset ثابت +03:30
 const TEHRAN_OFFSET = "+03:30";
@@ -33,21 +31,17 @@ const TEHRAN_OFFSET = "+03:30";
 // روزهای هفته مطابق EXTRACT(DOW): ۰=یکشنبه … ۶=شنبه
 const SAT = 6, SUN = 0, MON = 1, TUE = 2, WED = 3, THU = 4;
 
-async function createUser(db: Database, passwordHash: string, u: { name: string; email: string; role: UserRole; phone?: string }) {
-  const [user] = await db.insert(users).values({ name: u.name, email: u.email, emailVerified: true }).returning();
-  // حساب credential مطابق ساختار Better Auth (accountId = userId, providerId = "credential")
-  await db.insert(accounts).values({
-    accountId: user!.id,
-    providerId: "credential",
-    userId: user!.id,
-    password: passwordHash,
-    updatedAt: new Date(),
-  });
+async function createUser(db: Database, u: { name: string; email: string; role: UserRole; phone: string }) {
+  // هویت ورود: شماره موبایل به شکل استاندارد ‎+989XXXXXXXXX‎ (ایمیل فقط برای سازگاری با داده‌های قبلی)
+  const [user] = await db
+    .insert(users)
+    .values({ name: u.name, email: u.email, emailVerified: true, phoneNumber: `+98${u.phone.slice(1)}`, phoneNumberVerified: true })
+    .returning();
   await ensureProfile(db, { userId: user!.id, fullName: u.name });
   // تعیین نقش در seed (دسترسی مستقیم به دیتابیس) — در برنامه فقط از مسیرهای کنترل‌شده
   await db
     .update(profiles)
-    .set({ role: u.role, roleSelectedAt: new Date(), phone: u.phone ?? null })
+    .set({ role: u.role, roleSelectedAt: new Date(), phone: u.phone })
     .where(sql`${profiles.userId} = ${user!.id}`);
   return { userId: user!.id, role: u.role } satisfies Actor;
 }
@@ -82,16 +76,14 @@ async function main() {
                reviews, portfolio_items, favorites, notifications
       RESTART IDENTITY CASCADE`);
 
-    const hash = await hashPassword(DEV_PASSWORD);
-
     console.log("• users");
-    await createUser(db, hash, { name: "مدیر سیستم", email: "admin@arayeshgahman.local", role: "admin" });
-    const owner1 = await createUser(db, hash, { name: "شیرین تهرانی", email: "owner.rosegold@arayeshgahman.local", role: "salon_owner", phone: "09120000001" });
-    const owner2 = await createUser(db, hash, { name: "فرزانه نیک‌نام", email: "owner.mahroo@arayeshgahman.local", role: "salon_owner", phone: "09120000002" });
-    const negarU = await createUser(db, hash, { name: "نگار احمدی", email: "negar@arayeshgahman.local", role: "stylist", phone: "09130000001" });
-    const saraU = await createUser(db, hash, { name: "سارا کریمی", email: "sara@arayeshgahman.local", role: "stylist", phone: "09130000002" });
-    const maryamU = await createUser(db, hash, { name: "مریم رضایی", email: "maryam@arayeshgahman.local", role: "stylist", phone: "09130000003" });
-    const elhamU = await createUser(db, hash, { name: "الهام موسوی", email: "elham@arayeshgahman.local", role: "stylist", phone: "09130000004" });
+    await createUser(db, { name: "مدیر سیستم", email: "admin@arayeshgahman.local", role: "admin", phone: "09120000099" });
+    const owner1 = await createUser(db, { name: "شیرین تهرانی", email: "owner.rosegold@arayeshgahman.local", role: "salon_owner", phone: "09120000001" });
+    const owner2 = await createUser(db, { name: "فرزانه نیک‌نام", email: "owner.mahroo@arayeshgahman.local", role: "salon_owner", phone: "09120000002" });
+    const negarU = await createUser(db, { name: "نگار احمدی", email: "negar@arayeshgahman.local", role: "stylist", phone: "09130000001" });
+    const saraU = await createUser(db, { name: "سارا کریمی", email: "sara@arayeshgahman.local", role: "stylist", phone: "09130000002" });
+    const maryamU = await createUser(db, { name: "مریم رضایی", email: "maryam@arayeshgahman.local", role: "stylist", phone: "09130000003" });
+    const elhamU = await createUser(db, { name: "الهام موسوی", email: "elham@arayeshgahman.local", role: "stylist", phone: "09130000004" });
     const customers = await Promise.all(
       [
         ["مینا صادقی", "mina", "09350000001"],
@@ -99,7 +91,7 @@ async function main() {
         ["نازنین حسینی", "nazanin", "09350000003"],
         ["پریسا اکبری", "parisa", "09350000004"],
       ].map(([name, slug, phone]) =>
-        createUser(db, hash, { name: name!, email: `${slug}@example.com`, role: "customer", phone }),
+        createUser(db, { name: name!, email: `${slug}@example.com`, role: "customer", phone: phone! }),
       ),
     );
     const [mina, leila, nazanin, parisa] = customers as [Actor, Actor, Actor, Actor];
@@ -237,7 +229,7 @@ async function main() {
       select 'reviews', count(*)::int from reviews union all
       select 'notifications', count(*)::int from notifications`);
     console.table(counts.rows);
-    console.log(`✓ seed complete — dev password for all users: ${DEV_PASSWORD}`);
+    console.log("✓ seed complete — sign in with any seeded mobile number and the dev OTP (AUTH_STATIC_OTP, default 1111)");
   } finally {
     await db.$client.end();
   }
