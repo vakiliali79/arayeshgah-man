@@ -6,7 +6,8 @@ export const userRole = pgEnum("user_role", ["customer", "stylist", "salon_owner
 /** نقش عضو در یک سالن مشخص */
 export const salonMemberRole = pgEnum("salon_member_role", ["owner", "manager", "stylist", "receptionist"]);
 
-export const membershipStatus = pgEnum("membership_status", ["invited", "active", "suspended", "left"]);
+/** requested: درخواست عضویت از طرف خود آرایشگر (منتظر تأیید سالن) */
+export const membershipStatus = pgEnum("membership_status", ["invited", "active", "suspended", "left", "requested"]);
 
 /** مجوزهای ریز هر عضو در سالن */
 export const salonPermission = pgEnum("salon_permission", [
@@ -56,3 +57,10 @@ export const notificationType = pgEnum("notification_type", [
   "membership_updated",
   "system",
 ]);
+
+/** نوع پیام‌های ورودی (تماس، پشتیبانی، شکایت، گزارش نظر نامناسب) */
+export const ticketKind = pgEnum("ticket_kind", ["contact", "support", "complaint", "review_report"]);
+export const ticketStatus = pgEnum("ticket_status", ["open", "in_progress", "resolved", "closed"]);
+
+/** مخاطب پلن اشتراک */
+export const planAudience = pgEnum("plan_audience", ["salon", "stylist"]);

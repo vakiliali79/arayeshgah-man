@@ -16,6 +16,11 @@ export const stylists = pgTable(
       .unique()
       .references(() => users.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
+    /** شناسه یکتای آدرس صفحه عمومی (/stylists/[slug]) */
+    slug: text("slug").notNull().unique(),
+    /** موقعیت آرایشگر مستقل (برای عضو سالن، شهر سالن ملاک است) */
+    city: text("city"),
+    district: text("district"),
     bio: text("bio"),
     specialties: text("specialties").array().notNull().default(sql`'{}'::text[]`),
     yearsExperience: smallint("years_experience"),
@@ -30,6 +35,7 @@ export const stylists = pgTable(
   },
   (t) => [
     check("stylists_display_name_length", sql`char_length(${t.displayName}) between 2 and 80`),
+    check("stylists_slug_format", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
     check("stylists_experience_range", sql`${t.yearsExperience} is null or ${t.yearsExperience} between 0 and 70`),
     check("stylists_rating_range", sql`${t.ratingAvg} between 0 and 5 and ${t.ratingCount} >= 0`),
   ],

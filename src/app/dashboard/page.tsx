@@ -1,52 +1,12 @@
-import type { Metadata } from "next";
-import { Alert, Avatar, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from "@/components/ui";
-import { ROLE_META } from "@/config/roles";
-import { signOutAction } from "@/features/auth/actions";
+import { redirect } from "next/navigation";
+import { db } from "@/db";
 import { requireSession } from "@/server/auth/current";
+import { defaultSectionPath, getDashboardSections } from "@/server/dashboard/access";
 
-export const metadata: Metadata = { title: "داشبورد" };
-export const dynamic = "force-dynamic";
-
-/** داشبورد موقت — داشبوردهای اختصاصی هر نقش در مراحل بعد ساخته می‌شوند */
-const WELCOME: Record<string, string> = {
-  registered: "ثبت‌نام شما با موفقیت انجام شد و وارد حساب خود شدید.",
-  login: "با موفقیت وارد شدید.",
-};
-
-export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  const { user, profile } = await requireSession();
+/** هدایت هر کاربر به داشبورد نقش خودش (پیام خوش‌آمد حفظ می‌شود) */
+export default async function DashboardIndex({ searchParams }: PageProps<"/dashboard">) {
+  const { actor } = await requireSession();
   const { welcome } = await searchParams;
-  const welcomeText = typeof welcome === "string" ? WELCOME[welcome] : undefined;
-  const name = profile.fullName ?? user.name;
-  const role = profile.role;
-
-  return (
-    <div className="bg-luxe min-h-dvh">
-      <header className="container-page flex h-16 items-center justify-between">
-        <Logo />
-        <form action={signOutAction}>
-          <Button type="submit" variant="outline" size="sm">
-            خروج
-          </Button>
-        </form>
-      </header>
-      <main className="container-page space-y-4 py-10">
-        {welcomeText && <Alert tone="success" className="mx-auto max-w-lg">{welcomeText}</Alert>}
-        <Card className="mx-auto max-w-lg">
-          <CardHeader className="flex flex-row items-center gap-4">
-            <Avatar name={name} />
-            <div className="space-y-1">
-              <CardTitle>سلام، {name}</CardTitle>
-              <Badge tone="gold">{ROLE_META[role].label}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CardDescription className="leading-7">
-              ورود شما با موفقیت انجام شد. داشبورد اختصاصی «{ROLE_META[role].label}» در مرحله بعدی توسعه آماده می‌شود.
-            </CardDescription>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
-  );
+  const path = defaultSectionPath(await getDashboardSections(db, actor));
+  redirect(typeof welcome === "string" && /^[a-z]+$/.test(welcome) ? `${path}?welcome=${welcome}` : path);
 }

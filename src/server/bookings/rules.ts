@@ -29,3 +29,8 @@ export const TRANSITIONS: Record<BookingAction, { from: readonly BookingStatus[]
 export function canTransition(from: BookingStatus, action: BookingAction): boolean {
   return TRANSITIONS[action].from.includes(from);
 }
+
+/** آیا مشتری هنوز می‌تواند این نوبت را لغو کند؟ (همان قانونی که سرور هنگام لغو اعمال می‌کند) */
+export function canCustomerCancel(b: { status: BookingStatus; startsAt: Date }, now: Date = new Date()): boolean {
+  return (b.status === "pending" || b.status === "confirmed") && b.startsAt.getTime() - now.getTime() >= BOOKING_RULES.customerCancelCutoffMinutes * 60_000;
+}

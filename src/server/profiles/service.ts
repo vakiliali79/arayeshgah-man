@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { DbOrTx } from "@/db/client";
-import { profiles } from "@/db/schema";
+import { files, profiles } from "@/db/schema";
 import type { UserRole } from "@/db/types";
 import { isAdmin, type Actor } from "../auth/actor";
 import { ConflictError, ForbiddenError, NotFoundError, PG, findPgError } from "../errors";
@@ -112,4 +112,13 @@ export async function updateOwnProfile(db: DbOrTx, actor: Actor, input: unknown)
     if (findPgError(err)?.code === PG.UNIQUE_VIOLATION) throw new ConflictError("PHONE_TAKEN", "Phone number is already in use");
     throw err;
   }
+}
+
+/** تنظیم تصویر پروفایل خود کاربر (فایل باید متعلق به خودش و از نوع avatar باشد) */
+export async function setOwnAvatar(db: DbOrTx, actor: Actor, fileId: string | null) {
+  if (fileId) {
+    const [file] = await db.select().from(files).where(and(eq(files.id, fileId), isNull(files.deletedAt))).limit(1);
+    if (!file || file.ownerId !== actor.userId || file.purpose !== "avatar") throw new ForbiddenError();
+  }
+  await db.update(profiles).set({ avatarFileId: fileId }).where(eq(profiles.userId, actor.userId));
 }

@@ -29,6 +29,13 @@
       "when": 1794639018655,
       "tag": "0003_backfill_phone_numbers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794643178010,
+      "tag": "0004_phase3_marketplace",
+      "breakpoints": true
     }
   ]
 }

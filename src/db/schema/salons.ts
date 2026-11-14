@@ -29,6 +29,8 @@ export const salons = pgTable(
     phone: text("phone"),
     city: text("city").notNull(),
     address: text("address").notNull(),
+    /** منطقه/محله (برای فیلتر جستجو) */
+    district: text("district"),
     latitude: numeric("latitude", { precision: 9, scale: 6 }),
     longitude: numeric("longitude", { precision: 9, scale: 6 }),
     /** منطقه زمانی IANA؛ ساعات کاری به وقت محلی همین منطقه تفسیر می‌شوند */

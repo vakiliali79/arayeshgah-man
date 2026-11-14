@@ -10,6 +10,7 @@ import { parseInput } from "../validation";
 import { hasTimeOffConflict, isSalonOpen, isStylistWorking } from "./availability";
 import { BOOKING_RULES, TRANSITIONS, canTransition, type BookingAction } from "./rules";
 import { createBookingSchema, listBookingsSchema, transitionSchema } from "./schemas";
+import { generateTrackingCode } from "./tracking";
 
 export interface Clock {
   /** ساعت قابل تزریق برای تست؛ پیش‌فرض زمان واقعی */
@@ -33,6 +34,16 @@ export class BookingConflictError extends ConflictError {
  * تضمین نهایی عدم تداخل (حتی برای درخواست‌های هم‌زمان) با exclusion constraint در PostgreSQL است.
  */
 export async function createBooking(db: Database, actor: Actor, input: unknown, clock: Clock = {}): Promise<Booking> {
+  // برخورد کد پیگیری تقریباً غیرممکن است؛ در صورت وقوع یک‌بار دیگر تلاش می‌شود
+  try {
+    return await createBookingOnce(db, actor, input, clock);
+  } catch (err) {
+    if (findPgError(err)?.constraint === "bookings_tracking_code_unique") return createBookingOnce(db, actor, input, clock);
+    throw err;
+  }
+}
+
+async function createBookingOnce(db: Database, actor: Actor, input: unknown, clock: Clock): Promise<Booking> {
   const data = parseInput(createBookingSchema, input);
   const now = clock.now ?? new Date();
   const startsAt = data.startsAt;
@@ -124,6 +135,7 @@ export async function createBooking(db: Database, actor: Actor, input: unknown, 
           priceToman,
           timezone,
           customerNote: data.customerNote,
+          trackingCode: generateTrackingCode(),
         })
         .returning();
 
