@@ -1,5 +1,7 @@
 import { ShieldIcon, SparkleIcon, StarIcon } from "@/components/icons";
-import { Logo } from "@/components/ui";
+import { Alert, Logo } from "@/components/ui";
+import { isAuthTestMode, TEST_MODE_OTP } from "@/server/otp/config";
+import { toPersianDigits } from "@/lib/utils";
 
 const highlights = [
   { Icon: SparkleIcon, text: "دسترسی به بیش از ۱۲۰۰ سالن منتخب" },
@@ -8,12 +10,24 @@ const highlights = [
 ];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const testMode = isAuthTestMode();
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1fr_1.05fr]">
       <main className="bg-luxe flex flex-col px-4 py-6 sm:px-8">
         <Logo />
         <div className="flex flex-1 items-center justify-center py-8">
-          <div className="animate-fade-up w-full max-w-md">{children}</div>
+          <div className="animate-fade-up w-full max-w-md">
+            {testMode && (
+              <Alert tone="warning" className="mb-6">
+                <strong>حالت تست — احراز هویت واقعی نیست.</strong> هیچ پیامکی ارسال نمی‌شود و کد ورود برای همه شماره‌ها{" "}
+                <span dir="ltr" className="font-bold">
+                  {toPersianDigits(TEST_MODE_OTP)}
+                </span>{" "}
+                است. از اطلاعات واقعی استفاده نکنید.
+              </Alert>
+            )}
+            {children}
+          </div>
         </div>
       </main>
 

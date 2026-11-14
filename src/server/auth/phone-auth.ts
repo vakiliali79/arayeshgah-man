@@ -6,7 +6,7 @@ import type { SelfAssignableRole } from "@/config/roles";
 import { withRegistrationIntent } from "../otp/intent";
 import { toLocalPhone } from "../otp/phone";
 import { applyRegistrationChoices } from "../profiles/service";
-import type { Auth } from "./better-auth";
+import { getAuthTestMode, type Auth } from "./better-auth";
 
 /**
  * فرایند ورود/ثبت‌نام با موبایل و OTP (منطق سمت سرور؛ Server Actionها فقط پوسته هستند).
@@ -67,7 +67,8 @@ function mapError(err: unknown): OtpFailure {
 /** مرحله ۱: درخواست کد (ورود: حساب باید وجود داشته باشد؛ ثبت‌نام: نباید وجود داشته باشد) */
 export async function requestOtp(auth: Auth, db: DbOrTx, input: { phone: string; purpose: OtpPurpose }, headers: Headers): Promise<OtpResult> {
   const account = await findAccountByPhone(db, input.phone);
-  if (input.purpose === "login" && !account) return { ok: false, reason: "not_registered" };
+  // حالت تست: شماره ناشناخته هنگام ورود خودکار ثبت‌نام می‌شود
+  if (input.purpose === "login" && !account && !getAuthTestMode(auth)) return { ok: false, reason: "not_registered" };
   if (input.purpose === "register" && account) return { ok: false, reason: "already_registered" };
   try {
     await auth.api.sendPhoneNumberOTP({ body: { phoneNumber: input.phone }, headers });
@@ -84,7 +85,7 @@ export async function verifyLoginOtp(
   input: { phone: string; code: string },
   headers: Headers,
 ): Promise<OtpResult<{ userId: string; setCookie: string[] }>> {
-  if (!(await findAccountByPhone(db, input.phone))) return { ok: false, reason: "not_registered" };
+  if (!getAuthTestMode(auth) && !(await findAccountByPhone(db, input.phone))) return { ok: false, reason: "not_registered" };
   try {
     const res = await auth.api.verifyPhoneNumber({ body: { phoneNumber: input.phone, code: input.code }, headers, returnHeaders: true });
     return { ok: true, userId: res.response.user.id, setCookie: res.headers.getSetCookie() };

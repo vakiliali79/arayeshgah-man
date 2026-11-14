@@ -80,9 +80,32 @@ async function applyStaticCode(ctx: EndpointCtx | undefined, phone: string, gene
  * - نقش در جدول profiles است و هیچ endpoint عمومی Better Auth به آن دسترسی ندارد.
  * - ساخت کاربر فقط داخل فرایند ثبت‌نام سمت سرور (RegistrationIntent) مجاز است.
  */
+/** حالت تست هر نمونه auth (برای سرویس ورود/ثبت‌نام) */
+const authTestModes = new WeakMap<object, { adminPhone: string }>();
+
+/** اگر این نمونه در حالت تست موقت ساخته شده باشد، تنظیمات آن را برمی‌گرداند */
+export function getAuthTestMode(auth: object): { adminPhone: string } | undefined {
+  return authTestModes.get(auth);
+}
+
 export function createAuth(database: Database, options: CreateAuthOptions = {}) {
   const otp = options.otp ?? resolveOtpConfig();
+  const instance = buildAuth(database, { ...options, otp });
+  if (otp.mode === "static" && otp.testMode) authTestModes.set(instance, otp.testMode);
+  return instance;
+}
+
+function buildAuth(database: Database, options: CreateAuthOptions) {
+  const otp = options.otp ?? resolveOtpConfig();
   const sender = options.otpSender ?? createOtpSender(otp);
+  /** حالت تست موقت (AUTH_TEST_MODE=true): هر شماره وارد می‌شود؛ احراز هویت واقعی نیست */
+  const testMode = otp.mode === "static" ? otp.testMode : undefined;
+  if (testMode && process.env.NEXT_PHASE !== "phase-production-build") {
+    console.warn(
+      "[auth] ⚠ AUTH_TEST_MODE=true — TEST AUTHENTICATION ONLY: any mobile number signs in with a fixed code and " +
+        "one configured number is always admin. Never use this for real users.",
+    );
+  }
 
   return betterAuth({
     appName: "ArayeshgahMan",
@@ -149,7 +172,8 @@ export function createAuth(database: Database, options: CreateAuthOptions = {}) 
             throw new APIError("FORBIDDEN", { code: "PHONE_CHANGE_DISABLED", message: "Changing the phone number is not supported" });
           }
           // ورود فقط برای حساب موجود؛ ساخت حساب فقط در فرایند ثبت‌نام برنامه
-          if (typeof body.phoneNumber === "string" && !getRegistrationIntent(body.phoneNumber)) {
+          // (در حالت تست، شماره ناشناخته هنگام ورود خودکار با نقش customer ثبت‌نام می‌شود)
+          if (!testMode && typeof body.phoneNumber === "string" && !getRegistrationIntent(body.phoneNumber)) {
             const [existing] = await database
               .select({ id: schema.users.id })
               .from(schema.users)
@@ -167,7 +191,8 @@ export function createAuth(database: Database, options: CreateAuthOptions = {}) 
           // لایه دوم دفاع: بدون نیت ثبت‌نام هیچ کاربری ساخته نمی‌شود
           before: async (user) => {
             const phone = (user as { phoneNumber?: string | null }).phoneNumber;
-            if (!phone || !getRegistrationIntent(phone)) return false;
+            if (!phone) return false;
+            if (!testMode && !getRegistrationIntent(phone)) return false;
           },
           // هر کاربر جدید یک پروفایل «مشتری» می‌گیرد؛ نقش هرگز از ورودی کاربر خوانده نمی‌شود
           after: async (user) => {
@@ -188,6 +213,12 @@ export function createAuth(database: Database, options: CreateAuthOptions = {}) 
           if (otp.mode === "static") await applyStaticCode(ctx as EndpointCtx | undefined, phone, code, otp.code);
           else await sender.send({ phoneNumber: phone, code });
         },
+        // حالت تست: شماره ادمین تستی پس از هر تأیید موفق نقش admin می‌گیرد (در حالت عادی هیچ اثری ندارد)
+        callbackOnVerification: async ({ phoneNumber: phone, user }) => {
+          if (!testMode || phone !== testMode.adminPhone) return;
+          await ensureProfile(database, { userId: user.id, fullName: user.name });
+          await database.update(schema.profiles).set({ role: "admin", roleSelectedAt: new Date() }).where(eq(schema.profiles.userId, user.id));
+        },
         signUpOnVerification: {
           getTempEmail: () => `${randomUUID()}@${PLACEHOLDER_EMAIL_DOMAIN}`,
           getTempName: (phone) => getRegistrationIntent(phone)?.fullName ?? toLocalPhone(phone),
@@ -199,4 +230,4 @@ export function createAuth(database: Database, options: CreateAuthOptions = {}) 
   });
 }
 
-export type Auth = ReturnType<typeof createAuth>;
+export type Auth = ReturnType<typeof buildAuth>;
