@@ -60,6 +60,11 @@ describe("booking flow", () => {
     expect(f.stylistChoices).toHaveLength(2); // امکان «تغییر آرایشگر» در سالن
     expect(f.days).toHaveLength(14);
     expect(f.days.find((d) => d.key === FRIDAY)?.open).toBe(false);
+    expect(f.days.filter((d) => d.full)).toEqual([]);
+    // پس از پایان ساعت کاری امروز، امروز «تکمیل» است و قابل انتخاب نیست
+    const evening = await resolveBookingFlow(db, withStylist, { now: new Date(at("2026-11-21", "19:00")) });
+    expect(evening.days[0]).toMatchObject({ key: "2026-11-21", open: true, full: true });
+    expect(evening.days[1]).toMatchObject({ key: SUNDAY, open: true, full: false });
 
     f = await resolveBookingFlow(db, { ...withStylist, date: FRIDAY }, opts);
     expect(f.step).toBe("date");

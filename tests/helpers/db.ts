@@ -27,7 +27,7 @@ export async function resetDb(db: Database = getTestDb()) {
   await db.execute(sql`
     TRUNCATE users, sessions, accounts, verifications, profiles, files, salons, salon_members, stylists,
              services, stylist_services, working_hours, working_time_off, bookings, booking_events,
-             reviews, portfolio_items, favorites, notifications, support_tickets, subscription_plans, site_settings
+             reviews, portfolio_items, favorites, notifications, support_tickets, support_ticket_messages, admin_audit_logs, subscription_plans, site_settings
     RESTART IDENTITY CASCADE`);
 }
 

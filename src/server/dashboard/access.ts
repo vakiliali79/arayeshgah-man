@@ -6,7 +6,7 @@ import type { Actor } from "../auth/actor";
 /** سالن‌هایی که کاربر می‌تواند در داشبورد سالن مدیریت کند (مالک یا عضو فعال مدیر/پذیرش) */
 export async function getManagedSalons(db: DbOrTx, actor: Actor) {
   return db
-    .selectDistinct({ id: salons.id, name: salons.name, slug: salons.slug, isActive: salons.isActive, isVerified: salons.isVerified })
+    .selectDistinct({ id: salons.id, name: salons.name, slug: salons.slug, isActive: salons.isActive, isVerified: salons.isVerified, rejectionReason: salons.rejectionReason })
     .from(salons)
     .leftJoin(salonMembers, eq(salonMembers.salonId, salons.id))
     .where(

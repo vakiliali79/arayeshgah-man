@@ -25,7 +25,7 @@ async function setPhone(a: Actor, local: string) {
 }
 
 async function loginAs(who: keyof typeof PHONES) {
-  const ctx = await browser.newContext({ locale: "fa-IR", extraHTTPHeaders: { "x-real-ip": ALLOWED_IP } });
+  const ctx = await browser.newContext({ locale: "fa-IR", extraHTTPHeaders: { "x-real-ip": ALLOWED_IP, "x-forwarded-for": `198.51.100.${100 + Object.keys(pages).length}` } });
   const p = await ctx.newPage();
   await p.goto(`${BASE}/login`);
   await p.fill("#phone", PHONES[who]);
@@ -113,7 +113,7 @@ describe("roles and permissions end-to-end (server-side checks)", () => {
   });
 
   it("admin can open every admin section", async () => {
-    for (const s of ["", "/users", "/salons", "/stylists", "/bookings", "/reviews", "/tickets", "/categories", "/plans", "/content"]) {
+    for (const s of ["", "/users", "/salons", "/stylists", "/bookings", "/reviews", "/tickets", "/categories", "/plans", "/content", "/audit"]) {
       const r = await visit(pages.admin!, `/dashboard/admin${s}`);
       expect([r.path, r.status], s).toEqual([`/dashboard/admin${s}`, 200]);
     }

@@ -89,7 +89,8 @@ describe("booking end-to-end (guest → login → confirm → receipt)", () => {
     await p.waitForURL(/\/dashboard/);
     await p.goto(bookedUrl);
     expect(await p.locator("[aria-current=step]").textContent()).toContain("ساعت");
-    expect(await p.locator("main").textContent()).toContain("دیگر آزاد نیست");
+    // صفحه رزرو جریانی (streaming) بارگذاری می‌شود؛ تا جایگزینی محتوا صبر می‌کنیم
+    await expect.poll(async () => p.locator("main").first().textContent(), { timeout: 15_000 }).toContain("دیگر آزاد نیست");
     await p.context().close();
   });
 

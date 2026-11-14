@@ -22,7 +22,11 @@ export type StoredFile = InferSelectModel<typeof s.files>;
 export type SupportTicket = InferSelectModel<typeof s.supportTickets>;
 export type SubscriptionPlan = InferSelectModel<typeof s.subscriptionPlans>;
 export type ServiceCategoryRow = InferSelectModel<typeof s.serviceCategories>;
-export type ServiceCategory = (typeof s.serviceCategory.enumValues)[number];
+/** کلید دسته‌بندی خدمت (رکوردهای service_categories) */
+export type ServiceCategory = string;
+export type AccountStatus = (typeof s.accountStatus.enumValues)[number];
+export type AdminAuditLog = InferSelectModel<typeof s.adminAuditLogs>;
+export type SupportTicketMessage = InferSelectModel<typeof s.supportTicketMessages>;
 export type TicketKind = (typeof s.ticketKind.enumValues)[number];
 export type TicketStatus = (typeof s.ticketStatus.enumValues)[number];
 

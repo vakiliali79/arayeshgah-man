@@ -2,7 +2,7 @@ import type { DashboardSection } from "@/server/dashboard/access";
 
 export type NavIcon =
   | "home" | "calendar" | "heart" | "star" | "user" | "scissors" | "image" | "clock" | "store" | "users"
-  | "chart" | "settings" | "inbox" | "tag" | "grid" | "file" | "shield";
+  | "chart" | "settings" | "inbox" | "tag" | "grid" | "file" | "shield" | "bell";
 
 export interface NavItem {
   href: string;
@@ -25,6 +25,8 @@ export const NAV: Record<DashboardSection, NavItem[]> = {
     { href: "/dashboard/customer/bookings", label: "نوبت‌های من", icon: "calendar" },
     { href: "/dashboard/customer/favorites", label: "علاقه‌مندی‌ها", icon: "heart" },
     { href: "/dashboard/customer/reviews", label: "نظرات من", icon: "star" },
+    { href: "/dashboard/customer/notifications", label: "اعلان‌ها", icon: "bell" },
+    { href: "/dashboard/customer/support", label: "پشتیبانی من", icon: "inbox" },
     { href: "/dashboard/customer/profile", label: "اطلاعات حساب", icon: "user" },
   ],
   stylist: [
@@ -45,10 +47,11 @@ export const NAV: Record<DashboardSection, NavItem[]> = {
     { href: "/dashboard/admin/stylists", label: "آرایشگران", icon: "scissors" },
     { href: "/dashboard/admin/bookings", label: "نوبت‌ها", icon: "calendar" },
     { href: "/dashboard/admin/reviews", label: "نظرات", icon: "star" },
-    { href: "/dashboard/admin/tickets", label: "پیام‌ها و شکایات", icon: "inbox" },
+    { href: "/dashboard/admin/tickets", label: "پشتیبانی و شکایات", icon: "inbox" },
     { href: "/dashboard/admin/categories", label: "دسته‌بندی خدمات", icon: "tag" },
     { href: "/dashboard/admin/plans", label: "تعرفه‌ها", icon: "grid" },
     { href: "/dashboard/admin/content", label: "محتوا و تنظیمات", icon: "settings" },
+    { href: "/dashboard/admin/audit", label: "تاریخچه اقدامات", icon: "file" },
   ],
 };
 

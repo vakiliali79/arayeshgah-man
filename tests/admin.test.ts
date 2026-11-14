@@ -2,8 +2,9 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { profiles, users } from "@/db/schema";
 import {
-  deletePlan, getPlatformStats, listAllBookings, listPlans, listReviewsAdmin, listSalonsAdmin, listStylistsAdmin, listUsers, savePlan, setSalonStatus, setStylistActive, updateCategory,
+  deletePlan, listAllBookings, listPlans, listReviewsAdmin, listSalonsAdmin, listStylistsAdmin, listUsers, savePlan, setSalonStatus, setStylistActive, updateCategory,
 } from "@/server/admin/service";
+import { getAdminDashboard, parseRange } from "@/server/admin/stats";
 import { completeBooking, confirmBooking, createBooking } from "@/server/bookings/service";
 import { listAllCategories } from "@/server/catalog/categories";
 import { getSetting, setSetting } from "@/server/content/settings";
@@ -23,7 +24,7 @@ describe("admin dashboard", () => {
   it("every admin service rejects non-admin users", async () => {
     const s = await makeSalonScenario(db);
     for (const actor of [await makeUser(db), s.owner, s.stylistUser]) {
-      await expect(getPlatformStats(db, actor)).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(getAdminDashboard(db, actor, parseRange({}, new Date()))).rejects.toBeInstanceOf(ForbiddenError);
       await expect(listUsers(db, actor, {})).rejects.toBeInstanceOf(ForbiddenError);
       await expect(listSalonsAdmin(db, actor, {})).rejects.toBeInstanceOf(ForbiddenError);
       await expect(setSalonStatus(db, actor, { salonId: s.salon.id, isVerified: true })).rejects.toBeInstanceOf(ForbiddenError);
@@ -66,9 +67,9 @@ describe("admin dashboard", () => {
     const admin = await makeUser(db, "admin");
     const u = await makeUser(db, "customer", "نازنین حسینی");
     await db.update(users).set({ phoneNumber: "+989351234567" }).where(eq(users.id, u.userId));
-    expect((await listUsers(db, admin, { q: "نازنین" })).map((r) => r.id)).toEqual([u.userId]);
-    expect((await listUsers(db, admin, { q: "09351234567" })).map((r) => r.id)).toEqual([u.userId]);
-    expect((await listUsers(db, admin, { role: "admin" })).map((r) => r.id)).toEqual([admin.userId]);
+    expect((await listUsers(db, admin, { q: "نازنین" })).rows.map((r) => r.id)).toEqual([u.userId]);
+    expect((await listUsers(db, admin, { q: "09351234567" })).rows.map((r) => r.id)).toEqual([u.userId]);
+    expect((await listUsers(db, admin, { role: "admin" })).rows.map((r) => r.id)).toEqual([admin.userId]);
   });
 
   it("tickets: public submission needs phone or email; admins update status; review reports are surfaced", async () => {
@@ -92,9 +93,11 @@ describe("admin dashboard", () => {
     const reported = await listReviewsAdmin(db, admin, { view: "reported" });
     expect(reported).toEqual([expect.objectContaining({ id: review.id, reports: 1 })]);
 
-    const stats = await getPlatformStats(db, admin);
-    expect(stats).toMatchObject({ reportedReviews: 1, revenue: 1_200_000, bookings: { completed: 1 } });
-    expect(stats.salons).toMatchObject({ total: 1, pending: 1 });
+    const { totals, series, byStatus } = await getAdminDashboard(db, admin, parseRange({ range: "7" }, new Date()));
+    expect(totals).toMatchObject({ reports_open: 1, bookings_completed: 1, bookings: 1, salons: 1, salons_pending: 1, tickets: 2, tickets_open: 1 });
+    expect(series).toHaveLength(7);
+    expect(series.reduce((a, p) => a + p.bookings, 0)).toBe(1); // ثبت نوبت امروز (created_at = now)
+    expect(byStatus).toEqual([{ status: "completed", n: 1 }]);
   });
 
   it("settings are validated per key and readable", async () => {

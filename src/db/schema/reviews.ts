@@ -27,6 +27,8 @@ export const reviews = pgTable(
     reply: text("reply"),
     repliedAt: tstz("replied_at"),
     isHidden: boolean("is_hidden").notNull().default(false),
+    /** دلیل مخفی‌سازی توسط مدیریت (تاریخچه کامل در admin_audit_logs) */
+    hiddenReason: text("hidden_reason"),
     ...timestamps,
   },
   (t) => [

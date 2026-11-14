@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { DbOrTx } from "@/db/client";
 import { siteSettings } from "@/db/schema";
 import type { Actor } from "../auth/actor";
-import { ForbiddenError } from "../errors";
+import { recordAudit } from "../admin/audit";
+import { ForbiddenError, NotFoundError } from "../errors";
 import { parseInput } from "../validation";
 
 const optText = (max: number) => z.string().trim().max(max).optional();
@@ -43,10 +44,13 @@ export async function getSetting<K extends SettingKey>(db: DbOrTx, key: K): Prom
 /** ذخیره تنظیمات — فقط ادمین؛ مقدار با طرح همان کلید اعتبارسنجی می‌شود */
 export async function setSetting<K extends SettingKey>(db: DbOrTx, actor: Actor, key: K, value: unknown) {
   if (actor.role !== "admin") throw new ForbiddenError();
+  if (!Object.hasOwn(SETTING_SCHEMAS, key)) throw new NotFoundError("Setting");
   const data = parseInput(SETTING_SCHEMAS[key], value);
+  const [before] = await db.select({ value: siteSettings.value }).from(siteSettings).where(eq(siteSettings.key, key)).limit(1);
   await db
     .insert(siteSettings)
     .values({ key, value: data, updatedBy: actor.userId })
     .onConflictDoUpdate({ target: siteSettings.key, set: { value: data, updatedBy: actor.userId, updatedAt: new Date() } });
+  await recordAudit(db, actor, { action: "setting.update", targetType: "setting", targetId: key, changes: { value: { from: before?.value ?? null, to: data } } });
   return data;
 }

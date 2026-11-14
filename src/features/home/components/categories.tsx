@@ -4,7 +4,8 @@ import { SectionHeading } from "@/components/ui";
 import type { ServiceCategory } from "@/db/types";
 import { toPersianDigits } from "@/lib/utils";
 
-const icons: Record<ServiceCategory, typeof ScissorsIcon> = {
+/** آیکن دسته‌بندی‌های پایه؛ دسته‌بندی‌های افزوده‌شده توسط ادمین آیکن عمومی می‌گیرند */
+const icons: Record<string, typeof ScissorsIcon> = {
   hair: ScissorsIcon, color: BrushIcon, nail: HandIcon, skin: FaceIcon, makeup: SparkleIcon, brow_lash: EyeIcon, spa: StarIcon, other: StarIcon,
 };
 
@@ -14,7 +15,7 @@ export function Categories({ items }: { items: { key: ServiceCategory; label: st
       <SectionHeading eyebrow="دسته‌بندی خدمات" title="امروز چه خدمتی می‌خواهید؟" />
       <ul className="grid grid-cols-3 gap-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-8">
         {items.map((c) => {
-          const Icon = icons[c.key];
+          const Icon = icons[c.key] ?? StarIcon;
           return (
             <li key={c.key}>
               <Link href={`/salons?category=${c.key}`} className="group flex h-full flex-col items-center gap-3 rounded-lg border border-border bg-surface p-4 text-center transition-all hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-lift">

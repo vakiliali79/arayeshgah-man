@@ -161,11 +161,11 @@ export default async function BookPage({ searchParams }: PageProps<"/book">) {
       {f.step === "date" && (
         <section className="space-y-3" aria-labelledby="d-title">
           <h2 id="d-title" className="font-bold">روز مراجعه را انتخاب کنید</h2>
-          {f.days.some((d) => d.open) ? (
+          {f.days.some((d) => d.open && !d.full) ? (
             <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {f.days.map((d) => (
                 <li key={d.key}>
-                  {d.open ? (
+                  {d.open && !d.full ? (
                     <Link href={bookHref({ ...base, salon: f.salon?.slug ?? params.salon, service: f.ctx?.serviceId, date: d.key })} className="flex flex-col items-center rounded-lg border border-border bg-surface p-3 text-center hover:border-primary-300 hover:bg-primary-50/40">
                       <span className="text-xs text-muted">{WEEKDAYS_FA[d.dow]}</span>
                       <span className="font-semibold">{formatDate(`${d.key}T12:00:00Z`, "UTC", { year: undefined })}</span>
@@ -174,14 +174,19 @@ export default async function BookPage({ searchParams }: PageProps<"/book">) {
                     <span className="flex flex-col items-center rounded-lg border border-dashed border-border p-3 text-center text-muted" aria-disabled="true">
                       <span className="text-xs">{WEEKDAYS_FA[d.dow]}</span>
                       <span>{formatDate(`${d.key}T12:00:00Z`, "UTC", { year: undefined })}</span>
-                      <span className="text-[0.7rem]">تعطیل</span>
+                      <span className="text-[0.7rem]">{d.full ? "تکمیل" : "تعطیل"}</span>
                     </span>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyState icon={<CalendarIcon />} title="ساعات کاری این آرایشگر هنوز ثبت نشده است" description="لطفاً آرایشگر یا سالن دیگری را انتخاب کنید." className="py-8" />
+            <EmptyState
+              icon={<CalendarIcon />}
+              title={f.days.some((d) => d.open) ? "در ۱۴ روز آینده زمان آزادی باقی نمانده است" : "ساعات کاری این آرایشگر هنوز ثبت نشده است"}
+              description="لطفاً آرایشگر یا سالن دیگری را انتخاب کنید."
+              className="py-8"
+            />
           )}
         </section>
       )}
