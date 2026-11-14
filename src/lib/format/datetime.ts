@@ -52,3 +52,8 @@ export function zonedLocalToIso(date: string, time: string, tz = DEFAULT_TZ): st
   ts = guess - offsetAt(ts);
   return new Date(ts).toISOString();
 }
+
+/** ساعت محلی HH:MM (ارقام لاتین، ۲۴ساعته) یک لحظه در منطقه زمانی مشخص؛ برای پارامتر URL */
+export function localTimeKey(d: Date, tz = DEFAULT_TZ) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+}
