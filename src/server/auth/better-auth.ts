@@ -18,8 +18,13 @@ import { AUTH_COOKIE_PREFIX } from "./constants";
 
 /** مدت اعتبار */
 export const AUTH_TTL = {
-  session: 60 * 60 * 24 * 14, // ۱۴ روز
-  sessionUpdateAge: 60 * 60 * 24, // تمدید روزانه
+  /**
+   * ماندگاری نشست و کوکی: ۳۰ روز از آخرین تمدید. با هر بازدید (حداکثر یک‌بار در روز) نشست و
+   * کوکی دوباره ۳۰ روز تمدید می‌شوند (SessionKeepAlive ← /api/auth/get-session)؛ کاربر فعال
+   * تا زمانی که خودش خارج نشود وارد می‌ماند.
+   */
+  session: 60 * 60 * 24 * 30,
+  sessionUpdateAge: 60 * 60 * 24, // تمدید حداکثر روزی یک‌بار
   otp: 5 * 60, // ۵ دقیقه
 } as const;
 
@@ -49,6 +54,17 @@ function resolveSecret(secret: string | undefined): string | undefined {
     throw new Error("BETTER_AUTH_SECRET must be set to at least 32 characters in production");
   }
   return secret;
+}
+
+/**
+ * دامنه مشترک کوکی (اختیاری) برای اشتراک نشست بین example.com و www.example.com.
+ * پیش‌فرض خاموش (کوکی فقط برای همان host). فقط نام دامنه معتبر پذیرفته می‌شود.
+ */
+export function resolveCookieDomain(value: string | undefined): string | undefined {
+  const v = value?.trim().replace(/^\./, "").toLowerCase();
+  if (!v) return undefined;
+  if (!/^(?=.{1,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$/.test(v)) throw new Error("AUTH_COOKIE_DOMAIN must be a domain name like example.com");
+  return v;
 }
 
 /** IP کلاینت برای allowlist حالت آزمایشی: فقط X-Real-IP که پروکسی معکوس بازنویسی می‌کند */
@@ -98,6 +114,7 @@ export function createAuth(database: Database, options: CreateAuthOptions = {}) 
 function buildAuth(database: Database, options: CreateAuthOptions) {
   const otp = options.otp ?? resolveOtpConfig();
   const sender = options.otpSender ?? createOtpSender(otp);
+  const cookieDomain = resolveCookieDomain(process.env.AUTH_COOKIE_DOMAIN);
   /** حالت تست موقت (AUTH_TEST_MODE=true): هر شماره وارد می‌شود؛ احراز هویت واقعی نیست */
   const testMode = otp.mode === "static" ? otp.testMode : undefined;
   if (testMode && process.env.NEXT_PHASE !== "phase-production-build") {
@@ -148,6 +165,7 @@ function buildAuth(database: Database, options: CreateAuthOptions) {
     ],
 
     advanced: {
+      ...(cookieDomain && { crossSubDomainCookies: { enabled: true, domain: cookieDomain } }),
       cookiePrefix: AUTH_COOKIE_PREFIX,
       useSecureCookies: process.env.NODE_ENV === "production",
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
@@ -186,6 +204,15 @@ function buildAuth(database: Database, options: CreateAuthOptions) {
     },
 
     databaseHooks: {
+      // حساب تعلیق‌شده توسط مدیریت نشست جدید نمی‌گیرد (لایه دوم؛ لایه اول در phone-auth)
+      session: {
+        create: {
+          before: async (session) => {
+            const [p] = await database.select({ status: schema.profiles.status }).from(schema.profiles).where(eq(schema.profiles.userId, session.userId)).limit(1);
+            if (p?.status === "suspended") return false;
+          },
+        },
+      },
       user: {
         create: {
           // لایه دوم دفاع: بدون نیت ثبت‌نام هیچ کاربری ساخته نمی‌شود

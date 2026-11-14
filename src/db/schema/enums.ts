@@ -32,16 +32,11 @@ export const bookingStatus = pgEnum("booking_status", [
 /** چه کسی وضعیت رزرو را تغییر داده است */
 export const bookingActor = pgEnum("booking_actor", ["customer", "stylist", "salon", "admin", "system"]);
 
-export const serviceCategory = pgEnum("service_category", [
-  "hair",
-  "color",
-  "nail",
-  "skin",
-  "makeup",
-  "brow_lash",
-  "spa",
-  "other",
-]);
+/** وضعیت حساب کاربری (تعلیق توسط مدیریت = عدم امکان ورود و ابطال نشست‌ها) */
+export const accountStatus = pgEnum("account_status", ["active", "suspended"]);
+
+/** نوع رویداد در تاریخچه پیگیری درخواست پشتیبانی */
+export const ticketMessageKind = pgEnum("ticket_message_kind", ["reply", "note", "status"]);
 
 export const filePurpose = pgEnum("file_purpose", ["avatar", "salon_cover", "salon_gallery", "portfolio"]);
 
@@ -64,3 +59,4 @@ export const ticketStatus = pgEnum("ticket_status", ["open", "in_progress", "res
 
 /** مخاطب پلن اشتراک */
 export const planAudience = pgEnum("plan_audience", ["salon", "stylist"]);
+

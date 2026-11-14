@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
-import { serviceCategory, services, stylistServices, stylists } from "@/db/schema";
+import { serviceCategories, services, stylistServices, stylists } from "@/db/schema";
 import type { Actor } from "../auth/actor";
 import { assertSalonPermission, isActiveSalonStylist } from "../auth/permissions";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
@@ -10,6 +10,17 @@ import { parseInput } from "../validation";
 
 const duration = z.number().int().min(5).max(720).multipleOf(5);
 const price = z.number().int().min(0).max(1_000_000_000);
+export const CATEGORY_KEY_RE = /^[a-z][a-z0-9_]{1,31}$/;
+const categoryKey = z.string().trim().regex(CATEGORY_KEY_RE);
+
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** دسته‌بندی باید وجود داشته و فعال باشد (دسته‌بندی غیرفعال برای خدمت جدید/تغییر قابل انتخاب نیست) */
+async function assertActiveCategory(tx: Tx, key: string | undefined) {
+  if (!key) return;
+  const [c] = await tx.select({ isActive: serviceCategories.isActive }).from(serviceCategories).where(eq(serviceCategories.key, key)).limit(1);
+  if (!c || !c.isActive) throw new BusinessRuleError("CATEGORY_UNAVAILABLE", "Category does not exist or is inactive");
+}
 
 const createServiceSchema = z
   .object({
@@ -17,7 +28,7 @@ const createServiceSchema = z
     stylistId: z.uuid().optional(),
     name: z.string().trim().min(2).max(120),
     description: z.string().trim().max(1000).optional(),
-    category: z.enum(serviceCategory.enumValues),
+    category: categoryKey,
     durationMinutes: duration,
     bufferMinutes: z.number().int().min(0).max(120).default(0),
     priceToman: price,
@@ -35,6 +46,7 @@ export async function createService(db: Database, actor: Actor, input: unknown) 
       if (!stylist) throw new NotFoundError("Stylist");
       if (stylist.userId !== actor.userId && !isAdmin(actor)) throw new ForbiddenError();
     }
+    await assertActiveCategory(tx, data.category);
     const [row] = await tx.insert(services).values(data).returning();
     return row!;
   });
@@ -86,7 +98,7 @@ const updateServiceSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
     description: z.string().trim().max(1000).nullable().optional(),
-    category: z.enum(serviceCategory.enumValues).optional(),
+    category: categoryKey.optional(),
     durationMinutes: duration.optional(),
     bufferMinutes: z.number().int().min(0).max(120).optional(),
     priceToman: price.optional(),
@@ -111,7 +123,9 @@ async function assertServiceAccess(tx: Parameters<Parameters<Database["transacti
 export async function updateService(db: Database, actor: Actor, serviceId: string, input: unknown) {
   const data = parseInput(updateServiceSchema, input);
   return db.transaction(async (tx) => {
-    await assertServiceAccess(tx, actor, serviceId);
+    const current = await assertServiceAccess(tx, actor, serviceId);
+    // دسته‌بندی فعلی خدمت (حتی اگر غیرفعال شده باشد) قابل حفظ است؛ تغییر فقط به دسته‌بندی فعال
+    if (data.category && data.category !== current.category) await assertActiveCategory(tx, data.category);
     const [row] = await tx.update(services).set(data).where(eq(services.id, serviceId)).returning();
     return row!;
   });

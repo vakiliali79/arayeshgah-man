@@ -38,6 +38,10 @@ export const salons = pgTable(
     coverFileId: uuid("cover_file_id").references(() => files.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
     isVerified: boolean("is_verified").notNull().default(false),
+    /** دلیل رد درخواست ثبت (null = رد نشده). ویرایش سالن توسط مالک، درخواست را دوباره «در انتظار» می‌کند */
+    rejectionReason: text("rejection_reason"),
+    /** آخرین بررسی مدیریت (تأیید یا رد) */
+    reviewedAt: tstz("reviewed_at"),
     ratingAvg: numeric("rating_avg", { precision: 3, scale: 2, mode: "number" }).notNull().default(0),
     ratingCount: integer("rating_count").notNull().default(0),
     ...timestamps,

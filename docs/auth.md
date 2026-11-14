@@ -61,8 +61,35 @@ the chosen role and contact phone are then applied server-side, once → `/dashb
 * **Rate limits:** Better Auth (HTTP, production): send-otp 3/min, verify 10/min per IP. Server actions (all
   environments): code requests 5 per number and 20 per IP per 10 min; verification 10 per number and 30 per IP per
   10 min (looser per IP because mobile carriers share IPs). The app limiter is in-memory (single instance).
-* **Session cookie** `arayeshgah.session_token`: `HttpOnly`, `SameSite=Lax`, `Path=/`; production adds `Secure` and the
-  `__Secure-` prefix. Sessions are stored in PostgreSQL (14 days, refreshed daily).
+* **Session cookie** `arayeshgah.session_token`: `HttpOnly`, `SameSite=Lax`, `Path=/`, persistent (`Max-Age` 30 days);
+  production adds `Secure` and the `__Secure-` prefix. Sessions are stored in PostgreSQL. See *Staying signed in* below.
+* **Suspended accounts** (admin panel): all sessions are deleted at suspension; no code is sent to a suspended number
+  (`suspended` message), and a Better Auth `session.create.before` hook refuses new sessions as a second layer.
+
+## Staying signed in (rolling 30-day sessions)
+
+Users stay signed in — across refreshes, closing the browser and later visits — until they sign out or are inactive
+for 30 days.
+
+* `AUTH_TTL.session` = 30 days; `sessionUpdateAge` = 1 day.
+* Server Components / Server Actions read the session with `disableRefresh` (they cannot set cookies; refreshing there
+  would extend the DB row while the browser cookie kept its old expiry and then silently expired).
+* `SessionKeepAlive` (client component in the site and dashboard layouts, only for signed-in users) calls Better Auth's
+  `GET /api/auth/get-session` on load, when the tab becomes visible and every 6 h (at most every 10 min). At most once a
+  day this extends **both** the DB session and the cookie by 30 days. No token is ever stored in `localStorage`/JS.
+  If the session was ended elsewhere (sign-out, suspension) the page refreshes into the signed-out state.
+* `/login` and `/register` redirect a signed-in user to their dashboard (or `next`). A dashboard request with an invalid
+  or expired cookie goes to `/login?next=<page>&notice=session_expired`. No redirect loops: the login page only redirects
+  when the server validates the session.
+* Sign-out deletes the session row; a replayed old cookie is rejected.
+
+**Checklist if users are still signed out on a server** (configuration, not code):
+
+1. The site must be served over **HTTPS** in production — the cookie is `Secure`; browsers drop it on plain HTTP.
+2. `BETTER_AUTH_URL` and `NEXT_PUBLIC_SITE_URL` must be the exact public origin (e.g. `https://example.com`).
+3. `BETTER_AUTH_SECRET` must stay the same across deploys — changing it invalidates every existing cookie.
+4. Serve one canonical host (redirect `www` → bare domain or the reverse in nginx). A cookie set on one host is not sent
+   to the other; alternatively set `AUTH_COOKIE_DOMAIN=example.com` to share it across subdomains.
 
 ## OTP modes
 
@@ -136,7 +163,7 @@ No auth logic changes: Better Auth keeps generating, storing, expiring and check
 
 ## Environment variables
 
-`DATABASE_URL`, `BETTER_AUTH_SECRET` (≥ 32 chars in production), `BETTER_AUTH_URL`, `AUTH_TEST_MODE`, `AUTH_OTP_MODE`,
+`DATABASE_URL`, `BETTER_AUTH_SECRET` (≥ 32 chars in production), `BETTER_AUTH_URL`, `AUTH_COOKIE_DOMAIN` (optional), `AUTH_TEST_MODE`, `AUTH_OTP_MODE`,
 `AUTH_STATIC_OTP`, `AUTH_STATIC_OTP_ALLOW_IN_PRODUCTION`, `AUTH_STATIC_OTP_ALLOWED_IPS`, `SMS_PROVIDER` (future),
 `NEXT_PUBLIC_SITE_URL`, `UPLOAD_DIR`, `UPLOAD_MAX_BYTES`; tests: `DATABASE_URL_TEST` (in `.env.test.local`).
 

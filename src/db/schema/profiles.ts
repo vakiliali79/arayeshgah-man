@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { check, index, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { DEFAULT_TIMEZONE, timestamps, tstz } from "./_shared";
 import { users } from "./auth";
-import { userRole } from "./enums";
+import { accountStatus, userRole } from "./enums";
 import { files } from "./files";
 
 /**
@@ -23,10 +23,15 @@ export const profiles = pgTable(
     city: text("city"),
     avatarFileId: uuid("avatar_file_id").references(() => files.id, { onDelete: "set null" }),
     timezone: text("timezone").notNull().default(DEFAULT_TIMEZONE),
+    /** حساب تعلیق‌شده نمی‌تواند وارد شود و نشست‌هایش باطل می‌شوند */
+    status: accountStatus("status").notNull().default("active"),
+    suspendedAt: tstz("suspended_at"),
+    suspendedReason: text("suspended_reason"),
     ...timestamps,
   },
   (t) => [
     index("profiles_role_idx").on(t.role),
+    check("profiles_suspended_reason_length", sql`${t.suspendedReason} is null or char_length(${t.suspendedReason}) between 3 and 500`),
     check("profiles_phone_format", sql`${t.phone} is null or ${t.phone} ~ '^09[0-9]{9}$'`),
     check("profiles_full_name_length", sql`${t.fullName} is null or char_length(${t.fullName}) between 1 and 80`),
   ],

@@ -20,7 +20,9 @@ export interface SessionContext {
  * وجود نداشته باشد (مثلاً شکست hook)، اینجا ساخته می‌شود.
  */
 export async function getSessionContext(auth: Auth, db: DbOrTx, headers: Headers): Promise<SessionContext | null> {
-  const result = await auth.api.getSession({ headers });
+  // RSC و Server Action نمی‌توانند کوکی را تمدید کنند؛ تمدید نشست + کوکی فقط در مسیر
+  // /api/auth/get-session انجام می‌شود (SessionKeepAlive) تا انقضای دیتابیس و کوکی همیشه هم‌زمان بمانند.
+  const result = await auth.api.getSession({ headers, query: { disableRefresh: true } });
   if (!result) return null;
   const { user, session } = result;
 
@@ -30,6 +32,8 @@ export async function getSessionContext(auth: Auth, db: DbOrTx, headers: Headers
     [profile] = await db.select().from(profiles).where(eq(profiles.userId, user.id)).limit(1);
   }
   if (!profile) return null;
+  // حساب تعلیق‌شده (نشست‌هایش هنگام تعلیق حذف می‌شوند؛ این بررسی لایه دوم است)
+  if (profile.status === "suspended") return null;
 
   return {
     user: { id: user.id, name: user.name, phoneNumber: (user as { phoneNumber?: string | null }).phoneNumber ?? null },

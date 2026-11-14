@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { requireSession } from "@/server/auth/current";
 import { cancelBooking } from "@/server/bookings/service";
 import { toggleFavorite } from "@/server/favorites/service";
+import { markAllNotificationsRead } from "@/server/notifications/service";
 import { formObject, runAction, toActionError, type ActionState } from "@/server/actions/result";
 import { setOwnAvatar, updateOwnProfile } from "@/server/profiles/service";
 import { createReview } from "@/server/reviews/service";
@@ -66,4 +67,11 @@ export async function uploadAvatarAction(_prev: ActionState, fd: FormData): Prom
   } catch (err) {
     return toActionError(err);
   }
+}
+
+export async function markNotificationsReadAction(): Promise<ActionState> {
+  const { actor } = await requireSession();
+  const n = await markAllNotificationsRead(db, actor);
+  revalidatePath("/dashboard", "layout");
+  return { status: "success", message: n ? "همه اعلان‌ها خوانده شد." : "اعلان خوانده‌نشده‌ای نبود." };
 }

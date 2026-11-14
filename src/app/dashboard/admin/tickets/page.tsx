@@ -1,54 +1,52 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { InboxIcon } from "@/components/icons";
-import { Badge, EmptyState, FormField, PageHeader, Select, Textarea } from "@/components/ui";
-import { ActionForm } from "@/components/ui/action-form";
+import { Badge, EmptyState, PageHeader, TabLinks } from "@/components/ui";
 import { db } from "@/db";
-import { ticketAction } from "@/features/dashboard/actions/admin";
-import { FilterBar } from "@/features/dashboard/components/filter-bar";
+import { FilterBar, param } from "@/features/dashboard/components/filter-bar";
 import { formatDateTime } from "@/lib/format/datetime";
 import { TICKET_KIND_LABEL, TICKET_STATUS_LABEL } from "@/lib/format/labels";
+import { toPersianDigits } from "@/lib/utils";
 import { requireSession } from "@/server/auth/current";
-import { listTickets } from "@/server/support/service";
+import { listTickets, ticketCountsByStatus } from "@/server/support/service";
 
-export const metadata: Metadata = { title: "پیام‌ها و شکایات" };
+export const metadata: Metadata = { title: "پشتیبانی و شکایات" };
+const STATUS_TABS = ["open", "in_progress", "resolved", "closed"] as const;
 
 export default async function AdminTickets({ searchParams }: PageProps<"/dashboard/admin/tickets">) {
   const { actor } = await requireSession(["admin"]);
   const sp = await searchParams;
-  const status = typeof sp.status === "string" ? sp.status : undefined;
-  const kind = typeof sp.kind === "string" ? sp.kind : undefined;
-  const rows = await listTickets(db, actor, { status, kind });
+  const status = STATUS_TABS.find((s) => s === param(sp, "status")) ?? (param(sp, "status") === "all" ? undefined : "open");
+  const kind = param(sp, "kind");
+  const q = param(sp, "q");
+  const [rows, counts] = await Promise.all([listTickets(db, actor, { status, kind, q }), ticketCountsByStatus(db, actor)]);
+  const href = (s: string) => `?status=${s}${kind ? `&kind=${kind}` : ""}`;
   return (
     <>
-      <PageHeader title="پیام‌ها، پشتیبانی و شکایات" />
-      <FilterBar
-        selects={[
-          { name: "status", value: status, options: [{ value: "", label: "همه وضعیت‌ها" }, ...Object.entries(TICKET_STATUS_LABEL).map(([value, label]) => ({ value, label }))] },
-          { name: "kind", value: kind, options: [{ value: "", label: "همه انواع" }, ...Object.entries(TICKET_KIND_LABEL).map(([value, label]) => ({ value, label }))] },
-        ]}
+      <PageHeader title="پشتیبانی، تماس و شکایات" description="هر درخواست را باز کنید تا پاسخ، یادداشت داخلی و تغییر وضعیت را با تاریخچه ثبت کنید." />
+      <TabLinks
+        active={status ?? "all"}
+        tabs={[...STATUS_TABS.map((s) => ({ key: s, label: TICKET_STATUS_LABEL[s], href: href(s), count: counts[s] ?? 0 })), { key: "all", label: "همه", href: href("all") }]}
       />
-      {rows.length === 0 ? <EmptyState icon={<InboxIcon />} title="پیامی وجود ندارد" /> : (
-        <ul className="space-y-3">
+      <FilterBar
+        q={q}
+        qPlaceholder="موضوع، نام، موبایل یا ایمیل"
+        selects={[{ name: "kind", label: "نوع", value: kind, options: [{ value: "", label: "همه انواع" }, ...Object.entries(TICKET_KIND_LABEL).map(([value, label]) => ({ value, label }))] }]}
+        hidden={{ status: status ?? "all" }}
+      />
+      {rows.length === 0 ? <EmptyState icon={<InboxIcon />} title="درخواستی در این دسته نیست" /> : (
+        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
           {rows.map((t) => (
-            <li key={t.id} className="rounded-lg border border-border bg-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-bold">{t.subject}</p>
-                <div className="flex gap-2"><Badge tone="primary">{TICKET_KIND_LABEL[t.kind]}</Badge><Badge tone={t.status === "open" ? "gold" : "neutral"}>{TICKET_STATUS_LABEL[t.status]}</Badge></div>
-              </div>
-              <p className="mt-1 text-xs text-muted">
-                {t.name}{t.phone ? <> · <a href={`tel:${t.phone}`} dir="ltr">{t.phone}</a></> : null}{t.email ? <> · <a href={`mailto:${t.email}`} dir="ltr">{t.email}</a></> : null} · {formatDateTime(t.createdAt)}
-              </p>
-              <p className="mt-2 whitespace-pre-line text-sm leading-7">{t.message}</p>
-              <details className="mt-2">
-                <summary className="cursor-pointer text-sm text-primary-700">پیگیری</summary>
-                <ActionForm action={ticketAction} submitLabel="ذخیره" submitSize="sm" className="mt-2">
-                  <input type="hidden" name="ticketId" value={t.id} />
-                  <FormField id={`s-${t.id}`} label="وضعیت">
-                    <Select id={`s-${t.id}`} name="status" defaultValue={t.status}>{Object.entries(TICKET_STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>
-                  </FormField>
-                  <FormField id={`n-${t.id}`} label="یادداشت داخلی"><Textarea id={`n-${t.id}`} name="adminNote" defaultValue={t.adminNote ?? ""} maxLength={2000} className="min-h-20" /></FormField>
-                </ActionForm>
-              </details>
+            <li key={t.id}>
+              <Link href={`/dashboard/admin/tickets/${t.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-surface-muted/60">
+                <div className="min-w-0">
+                  <p className="font-medium">{t.subject}</p>
+                  <p className="text-xs text-muted">
+                    {t.name}{t.userId ? " (کاربر واردشده)" : " (مهمان)"} · {formatDateTime(t.createdAt)}{t.messages ? ` · ${toPersianDigits(t.messages)} پیگیری` : ""}
+                  </p>
+                </div>
+                <span className="flex gap-2"><Badge tone="primary">{TICKET_KIND_LABEL[t.kind]}</Badge><Badge tone={t.status === "open" ? "gold" : t.status === "in_progress" ? "primary" : "neutral"}>{TICKET_STATUS_LABEL[t.status]}</Badge></span>
+              </Link>
             </li>
           ))}
         </ul>

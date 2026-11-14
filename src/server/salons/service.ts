@@ -171,7 +171,13 @@ export async function updateSalon(db: DbOrTx, actor: Actor, salonId: string, inp
   const { latitude, longitude, ...data } = parseInput(updateSalonSchema, input);
   const [row] = await db
     .update(salons)
-    .set({ ...data, ...(latitude !== undefined && { latitude: latitude.toString() }), ...(longitude !== undefined && { longitude: longitude.toString() }) })
+    .set({
+      ...data,
+      ...(latitude !== undefined && { latitude: latitude.toString() }),
+      ...(longitude !== undefined && { longitude: longitude.toString() }),
+      // سالن ردشده با ویرایش اطلاعات توسط مالک، دوباره برای بررسی «در انتظار تأیید» می‌شود
+      rejectionReason: null,
+    })
     .where(eq(salons.id, salonId))
     .returning();
   return row!;

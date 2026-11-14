@@ -6,6 +6,7 @@ const tones = {
   gold: "bg-gold-50 text-gold-600 ring-gold-200",
   success: "bg-success-soft text-success ring-success/15",
   neutral: "bg-surface-muted text-muted ring-border",
+  danger: "bg-danger-soft text-danger ring-danger/15",
 } as const;
 
 export function Badge({ tone = "primary", className, ...props }: HTMLAttributes<HTMLSpanElement> & { tone?: keyof typeof tones }) {

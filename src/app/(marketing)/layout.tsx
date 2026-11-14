@@ -1,5 +1,6 @@
 import { MobileBottomNav, SiteFooter, SiteHeader } from "@/components/layout";
 import { db } from "@/db";
+import { SessionKeepAlive } from "@/features/auth/components/session-keep-alive";
 import { getCurrentSession } from "@/server/auth/current";
 import { getSetting } from "@/server/content/settings";
 
@@ -14,6 +15,7 @@ export default async function MarketingLayout({ children }: { children: React.Re
       <main>{children}</main>
       <SiteFooter contact={contact} />
       <MobileBottomNav signedIn={Boolean(session)} />
+      {session && <SessionKeepAlive />}
     </>
   );
 }

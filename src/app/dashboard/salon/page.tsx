@@ -32,7 +32,7 @@ export default async function SalonsHome({ searchParams }: PageProps<"/dashboard
             <li key={s.id}>
               <Link href={`/dashboard/salon/${s.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4 shadow-soft hover:shadow-lift">
                 <span className="font-bold">{s.name}</span>
-                <SalonStatusBadge isActive={s.isActive} isVerified={s.isVerified} />
+                <SalonStatusBadge isActive={s.isActive} isVerified={s.isVerified} rejectionReason={s.rejectionReason} />
               </Link>
             </li>
           ))}

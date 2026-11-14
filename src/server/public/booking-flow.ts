@@ -23,7 +23,10 @@ export interface BookingParams {
 export interface BookingDay {
   key: string;
   dow: number;
+  /** روز کاری آرایشگر در این محل */
   open: boolean;
+  /** روز کاری که هیچ زمان آزادی ندارد (تکمیل یا ساعت کاری امروز گذشته) — فقط در مرحله تاریخ محاسبه می‌شود */
+  full?: boolean;
 }
 
 export interface ServiceChoice {
@@ -149,7 +152,14 @@ export async function resolveBookingFlow(db: DbOrTx, p: BookingParams, opts: { n
   // ---- تاریخ ----
   flow.days = bookingDays(opts.now, ctx.timezone, await getWorkingDays(db, ctx));
   const day = flow.days.find((d) => d.key === p.date && d.open);
-  if (!day) return { ...flow, step: "date", notice: p.date ? "روز انتخاب‌شده قابل رزرو نیست. روز دیگری انتخاب کنید." : undefined };
+  if (!day) {
+    // در مرحله انتخاب تاریخ، روزهایی که دیگر زمان آزاد ندارند «تکمیل» نمایش داده می‌شوند
+    const counts = await Promise.all(
+      flow.days.map((d) => (d.open ? getAvailableSlots(db, ctx, d.key, { now: opts.now, customerId: opts.customerId }).then((s) => s.length) : Promise.resolve(0))),
+    );
+    flow.days = flow.days.map((d, i) => (d.open ? { ...d, full: counts[i] === 0 } : d));
+    return { ...flow, step: "date", notice: p.date ? "روز انتخاب‌شده قابل رزرو نیست. روز دیگری انتخاب کنید." : undefined };
+  }
   flow.date = day.key;
 
   // ---- ساعت ----

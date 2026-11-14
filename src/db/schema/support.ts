@@ -1,9 +1,9 @@
 import { sql } from "drizzle-orm";
 import { check, index, pgTable, text, uuid } from "drizzle-orm/pg-core";
-import { id, timestamps } from "./_shared";
+import { id, timestamps, tstz } from "./_shared";
 import { users } from "./auth";
 import { bookings } from "./bookings";
-import { ticketKind, ticketStatus } from "./enums";
+import { ticketKind, ticketMessageKind, ticketStatus } from "./enums";
 import { reviews } from "./reviews";
 import { salons } from "./salons";
 
@@ -34,5 +34,26 @@ export const supportTickets = pgTable(
     check("support_tickets_subject_length", sql`char_length(${t.subject}) between 3 and 120`),
     check("support_tickets_message_length", sql`char_length(${t.message}) between 10 and 4000`),
     check("support_tickets_phone_format", sql`${t.phone} is null or ${t.phone} ~ '^09[0-9]{9}$'`),
+  ],
+);
+
+/**
+ * تاریخچه پیگیری هر درخواست: پاسخ مدیر (قابل مشاهده برای کاربر)، یادداشت داخلی و تغییر وضعیت.
+ */
+export const supportTicketMessages = pgTable(
+  "support_ticket_messages",
+  {
+    id: id(),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => supportTickets.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    kind: ticketMessageKind("kind").notNull(),
+    body: text("body").notNull(),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("support_ticket_messages_ticket_idx").on(t.ticketId, t.createdAt),
+    check("support_ticket_messages_body_length", sql`char_length(${t.body}) between 1 and 4000`),
   ],
 );

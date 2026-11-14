@@ -18,7 +18,10 @@ export function proxy(request: NextRequest) {
     url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  // مسیر جاری برای بازگشت پس از ورود دوباره (اگر نشست در سرور نامعتبر باشد)
+  const headers = new Headers(request.headers);
+  headers.set("x-request-path", pathname + search);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

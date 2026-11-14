@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, check, index, integer, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
 import { id, timestamps } from "./_shared";
-import { serviceCategory } from "./enums";
+import { serviceCategories } from "./platform";
 import { salons } from "./salons";
 import { stylists } from "./stylists";
 
@@ -17,7 +17,10 @@ export const services = pgTable(
     stylistId: uuid("stylist_id").references(() => stylists.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
-    category: serviceCategory("category").notNull(),
+    /** کلید دسته‌بندی (کلید خارجی به service_categories) */
+    category: text("category")
+      .notNull()
+      .references(() => serviceCategories.key, { onUpdate: "cascade", onDelete: "restrict" }),
     durationMinutes: smallint("duration_minutes").notNull(),
     /** زمان آماده‌سازی بعد از خدمت؛ در بازه اشغال آرایشگر لحاظ می‌شود */
     bufferMinutes: smallint("buffer_minutes").notNull().default(0),

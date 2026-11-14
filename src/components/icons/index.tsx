@@ -133,3 +133,6 @@ export const FileTextIcon = (p: IconProps) => (
 export const BriefcaseIcon = (p: IconProps) => (
   <svg {...base(p)}><rect x="3" y="7" width="18" height="13" rx="2.5" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18" /></svg>
 );
+export const BellIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15l1.5-2Z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg>
+);

@@ -20,7 +20,15 @@ export const getCurrentSession = cache(async (): Promise<SessionContext | null> 
  */
 export async function requireSession(allowedRoles?: readonly UserRole[]): Promise<SessionContext> {
   const ctx = await getCurrentSession();
-  if (!ctx) redirect(ROUTES.login);
+  if (!ctx) {
+    // کوکی هست ولی نشست نامعتبر/منقضی است ← ورود دوباره با پیام و بازگشت به همین صفحه
+    const h = await headers();
+    const q = new URLSearchParams();
+    const path = h.get("x-request-path");
+    if (path && path.startsWith("/dashboard") && !path.startsWith("//")) q.set("next", path);
+    if (/(^|;\s*)(__Secure-)?arayeshgah\.session_token=/.test(h.get("cookie") ?? "")) q.set("notice", "session_expired");
+    redirect(q.size ? `${ROUTES.login}?${q}` : ROUTES.login);
+  }
   if (allowedRoles && !hasRole(ctx, allowedRoles)) redirect(`${ROUTES.dashboard}?error=forbidden`);
   return ctx;
 }

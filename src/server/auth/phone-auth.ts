@@ -23,6 +23,7 @@ export type OtpFailure =
   | "too_many_attempts"
   | "rate_limited"
   | "unavailable"
+  | "suspended"
   | "unknown";
 
 export type OtpResult<T = object> = ({ ok: true } & T) | { ok: false; reason: OtpFailure };
@@ -30,7 +31,7 @@ export type OtpResult<T = object> = ({ ok: true } & T) | { ok: false; reason: Ot
 /** آیا این شماره قبلاً حساب دارد؟ (هویت ورود یا شماره پروفایل) */
 export async function findAccountByPhone(db: DbOrTx, phone: string) {
   const [row] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, status: profiles.status })
     .from(users)
     .leftJoin(profiles, eq(profiles.userId, users.id))
     .where(or(eq(users.phoneNumber, phone), eq(profiles.phone, toLocalPhone(phone))))
@@ -70,6 +71,8 @@ export async function requestOtp(auth: Auth, db: DbOrTx, input: { phone: string;
   // حالت تست: شماره ناشناخته هنگام ورود خودکار ثبت‌نام می‌شود
   if (input.purpose === "login" && !account && !getAuthTestMode(auth)) return { ok: false, reason: "not_registered" };
   if (input.purpose === "register" && account) return { ok: false, reason: "already_registered" };
+  // حساب تعلیق‌شده توسط مدیریت: کدی ارسال نمی‌شود
+  if (account?.status === "suspended") return { ok: false, reason: "suspended" };
   try {
     await auth.api.sendPhoneNumberOTP({ body: { phoneNumber: input.phone }, headers });
     return { ok: true };
@@ -85,7 +88,9 @@ export async function verifyLoginOtp(
   input: { phone: string; code: string },
   headers: Headers,
 ): Promise<OtpResult<{ userId: string; setCookie: string[] }>> {
-  if (!getAuthTestMode(auth) && !(await findAccountByPhone(db, input.phone))) return { ok: false, reason: "not_registered" };
+  const account = await findAccountByPhone(db, input.phone);
+  if (!getAuthTestMode(auth) && !account) return { ok: false, reason: "not_registered" };
+  if (account?.status === "suspended") return { ok: false, reason: "suspended" };
   try {
     const res = await auth.api.verifyPhoneNumber({ body: { phoneNumber: input.phone, code: input.code }, headers, returnHeaders: true });
     return { ok: true, userId: res.response.user.id, setCookie: res.headers.getSetCookie() };
