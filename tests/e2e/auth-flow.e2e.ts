@@ -136,6 +136,8 @@ describe("phone OTP auth end-to-end (production build, real browser)", () => {
   });
 
   it("a tampered registration form cannot create an admin", async () => {
+    const countAdmins = () => withDb(async (db) => (await db.select().from(profiles).where(eq(profiles.role, "admin"))).length);
+    const adminsBefore = await countAdmins();
     const c = await browser.newContext({ extraHTTPHeaders: { "x-real-ip": ALLOWED_IP } });
     const p = await c.newPage();
     await p.goto(`${BASE}/register`, { waitUntil: "networkidle" });
@@ -155,9 +157,9 @@ describe("phone OTP auth end-to-end (production build, real browser)", () => {
 
     const counts = await withDb(async (db) => ({
       attacker: (await db.select().from(users).where(eq(users.phoneNumber, "+989125556677"))).length,
-      admins: (await db.select().from(profiles).where(eq(profiles.role, "admin"))).length,
     }));
-    expect(counts).toEqual({ attacker: 0, admins: 0 });
+    expect(counts).toEqual({ attacker: 0 });
+    expect(await countAdmins()).toBe(adminsBefore); // هیچ ادمین جدیدی ساخته نشده
   });
 
   it("static OTP is unavailable to clients outside the allow-list", async () => {

@@ -108,7 +108,7 @@ describe("booking end-to-end (guest → login → confirm → receipt)", () => {
     const other = await makeUser(db);
     const { createBooking } = await import("@/server/bookings/service");
     const { zonedLocalToIso } = await import("@/lib/format/datetime");
-    const [svc] = await db.select({ serviceId: bookings.serviceId }).from(bookings).limit(1);
+    const [svc] = await db.select({ serviceId: bookings.serviceId }).from(bookings).where(eq(bookings.stylistId, stylistId)).limit(1);
     await createBooking(db, other, { stylistId, serviceId: svc!.serviceId, startsAt: zonedLocalToIso(t.searchParams.get("date")!, t.searchParams.get("time")!, "Asia/Tehran") });
     await p.click("button:has-text('ثبت نهایی نوبت')");
     await expect.poll(async () => p.locator("main").textContent(), { timeout: 15_000 }).toContain("زمان دیگری انتخاب کنید");
