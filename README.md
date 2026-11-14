@@ -1,6 +1,8 @@
 # آرایشگاه من (ArayeshgahMan)
 
-پلتفرم رزرو و مدیریت خدمات زیبایی — Next.js 16 · TypeScript · Tailwind CSS v4 · Supabase (PostgreSQL)
+پلتفرم رزرو و مدیریت خدمات زیبایی — Next.js 16 · TypeScript · Tailwind CSS v4 · PostgreSQL · Drizzle ORM · Better Auth
+
+> لایه داده در حال مهاجرت از Supabase به PostgreSQL + Drizzle + Better Auth است. معماری دیتابیس، دستورات مایگریشن، seed و تست: [docs/database.md](docs/database.md)
 
 ## اجرا
 
@@ -28,6 +30,8 @@ npx supabase db push
 | `npm run build` / `npm start` | بیلد و اجرای production |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | بررسی تایپ‌ها |
+| `npm run db:migrate` / `npm run db:seed` | مایگریشن و داده نمونه |
+| `npm test` | تست‌های یکپارچه با PostgreSQL |
 
 ## ساختار پوشه‌ها
 
@@ -52,5 +56,10 @@ src/
   config/              نقش‌ها، مسیرها، اطلاعات سایت
   types/               تایپ‌های دیتابیس
   proxy.ts             تازه‌سازی نشست و محافظت مسیرها (جایگزین middleware در Next 16)
-supabase/migrations/   مایگریشن‌های SQL
+  db/                  اسکیمای Drizzle، اتصال و تایپ‌ها
+  server/              سرویس‌های دامنه (مجوز، اعتبارسنجی، تراکنش): bookings, salons, storage, …
+drizzle/               مایگریشن‌های PostgreSQL
+scripts/               migrate, seed, create-admin
+tests/                 تست‌های یکپارچه (Vitest)
+supabase/migrations/   (قدیمی) مایگریشن Supabase — پس از تکمیل مهاجرت حذف می‌شود
 ```
