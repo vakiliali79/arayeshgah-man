@@ -19,7 +19,7 @@ import {
   createBooking,
 } from "../src/server/bookings/service";
 import { assignServiceToStylist, createService } from "../src/server/catalog/service";
-import { createProfileForNewUser } from "../src/server/profiles/service";
+import { ensureProfile } from "../src/server/profiles/service";
 import { createReview } from "../src/server/reviews/service";
 import { acceptSalonInvitation, createSalon, inviteSalonMember } from "../src/server/salons/service";
 import { addTimeOff, addWorkingHours } from "../src/server/schedules/service";
@@ -43,7 +43,7 @@ async function createUser(db: Database, passwordHash: string, u: { name: string;
     password: passwordHash,
     updatedAt: new Date(),
   });
-  await createProfileForNewUser(db, { userId: user!.id, fullName: u.name });
+  await ensureProfile(db, { userId: user!.id, fullName: u.name });
   // تعیین نقش در seed (دسترسی مستقیم به دیتابیس) — در برنامه فقط از مسیرهای کنترل‌شده
   await db
     .update(profiles)

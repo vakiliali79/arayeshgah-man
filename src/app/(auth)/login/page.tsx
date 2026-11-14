@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
-import { LoginForm } from "@/features/auth";
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/config/routes";
+import { LoginForm, type LoginNotice } from "@/features/auth";
 import { safeRedirectPath } from "@/features/auth/redirect";
+import { getCurrentSession } from "@/server/auth/current";
 
 export const metadata: Metadata = { title: "ورود" };
 
-const notices: Record<string, string> = {
-  auth_callback: "لینک تأیید نامعتبر یا منقضی شده است. لطفاً دوباره وارد شوید.",
+const notices: Record<string, LoginNotice> = {
+  password_reset: { tone: "success", text: "رمز عبور شما تغییر کرد. با رمز جدید وارد شوید." },
+  session_expired: { tone: "warning", text: "نشست شما منقضی شده است. لطفاً دوباره وارد شوید." },
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { next, error } = await searchParams;
-  const notice = typeof error === "string" ? notices[error] : undefined;
+  const { next, notice } = await searchParams;
+  const nextPath = typeof next === "string" ? safeRedirectPath(next) : undefined;
+
+  // کاربر واردشده (نشست معتبر سمت سرور) به مقصد هدایت می‌شود
+  if (await getCurrentSession()) redirect(nextPath ?? ROUTES.dashboard);
 
   return (
     <>
@@ -18,7 +25,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <h1 className="text-2xl font-extrabold sm:text-3xl">خوش برگشتید</h1>
         <p className="text-sm text-muted">برای مدیریت نوبت‌ها وارد حساب کاربری خود شوید.</p>
       </header>
-      <LoginForm next={typeof next === "string" ? safeRedirectPath(next) : undefined} notice={notice} />
+      <LoginForm next={nextPath} notice={typeof notice === "string" ? notices[notice] : undefined} />
     </>
   );
 }

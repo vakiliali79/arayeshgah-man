@@ -8,8 +8,10 @@ const globalForDb = globalThis as unknown as { __arayeshgahDb?: Database };
 
 function getDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set (see .env.example)");
-  return url;
+  if (url) return url;
+  // هنگام `next build` ماژول‌ها import می‌شوند ولی هیچ کوئری اجرا نمی‌شود؛ اتصال تا اولین کوئری برقرار نمی‌شود.
+  if (process.env.NEXT_PHASE === "phase-production-build") return "postgres://build-placeholder.invalid/none";
+  throw new Error("DATABASE_URL is not set (see .env.example)");
 }
 
 /**

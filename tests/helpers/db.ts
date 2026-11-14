@@ -4,7 +4,7 @@ import { profiles, users } from "@/db/schema";
 import type { UserRole } from "@/db/types";
 import type { Actor } from "@/server/auth/actor";
 import { createService, assignServiceToStylist } from "@/server/catalog/service";
-import { createProfileForNewUser } from "@/server/profiles/service";
+import { ensureProfile } from "@/server/profiles/service";
 import { acceptSalonInvitation, createSalon, inviteSalonMember } from "@/server/salons/service";
 import { addWorkingHours } from "@/server/schedules/service";
 import { createStylistProfile } from "@/server/stylists/service";
@@ -39,7 +39,7 @@ export async function makeUser(db: Database, role: UserRole = "customer", name =
     .insert(users)
     .values({ name, email: `user${seq}-${Date.now()}@test.local`, emailVerified: true })
     .returning();
-  await createProfileForNewUser(db, { userId: u!.id, fullName: name });
+  await ensureProfile(db, { userId: u!.id, fullName: name });
   if (role !== "customer") await db.update(profiles).set({ role }).where(sql`${profiles.userId} = ${u!.id}`);
   return { userId: u!.id, role };
 }

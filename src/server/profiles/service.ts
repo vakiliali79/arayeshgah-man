@@ -7,8 +7,9 @@ import { isAdmin, type Actor } from "../auth/actor";
 import { ConflictError, ForbiddenError, NotFoundError, PG, findPgError } from "../errors";
 import { parseInput } from "../validation";
 
-/** نقش‌هایی که کاربر خودش می‌تواند انتخاب کند. admin هرگز. */
-export const SELF_ASSIGNABLE_ROLES = ["customer", "stylist", "salon_owner"] as const;
+import { SELF_ASSIGNABLE_ROLES, type SelfAssignableRole } from "@/config/roles";
+
+export { SELF_ASSIGNABLE_ROLES };
 
 const phoneSchema = z
   .string()
@@ -16,10 +17,44 @@ const phoneSchema = z
   .transform((v) => v.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[\s-]/g, ""))
   .pipe(z.string().regex(/^09\d{9}$/, "Invalid Iranian mobile number"));
 
-/** فراخوانی از hook ایجاد کاربر در Better Auth — همیشه با نقش customer */
-export async function createProfileForNewUser(db: DbOrTx, input: { userId: string; fullName: string | null }) {
+/**
+ * ساخت پروفایل «مشتری» برای کاربر (idempotent).
+ * از hook ایجاد کاربر در Better Auth و به‌عنوان پشتیبان هنگام خواندن نشست فراخوانی می‌شود،
+ * تا حتی در صورت شکست hook، هیچ کاربری بدون پروفایل نماند. نقش هرگز از ورودی خوانده نمی‌شود.
+ */
+export async function ensureProfile(db: DbOrTx, input: { userId: string; fullName: string | null }) {
   const fullName = input.fullName?.trim().slice(0, 80) || null;
   await db.insert(profiles).values({ userId: input.userId, fullName, role: "customer" }).onConflictDoNothing();
+}
+
+/**
+ * اعمال انتخاب‌های فرم ثبت‌نام (سمت سرور، بلافاصله پس از ساخت کاربر):
+ * - نقش فقط از بین نقش‌های مجاز و فقط اگر قبلاً انتخاب نشده باشد
+ * - شماره موبایل اگر تکراری نباشد
+ */
+export async function applyRegistrationChoices(
+  db: DbOrTx,
+  userId: string,
+  choices: { role: SelfAssignableRole; phone?: string | null },
+) {
+  const role = parseInput(z.enum(SELF_ASSIGNABLE_ROLES), choices.role);
+  await db
+    .update(profiles)
+    .set({ role, roleSelectedAt: new Date() })
+    .where(and(eq(profiles.userId, userId), isNull(profiles.roleSelectedAt), eq(profiles.role, "customer")));
+  if (choices.phone) {
+    try {
+      await db.update(profiles).set({ phone: choices.phone }).where(and(eq(profiles.userId, userId), isNull(profiles.phone)));
+    } catch (err) {
+      if (findPgError(err)?.code !== PG.UNIQUE_VIOLATION) throw err; // شماره تکراری: بعداً در پروفایل قابل ثبت است
+    }
+  }
+}
+
+/** آیا شماره موبایل قبلاً ثبت شده است؟ */
+export async function isPhoneTaken(db: DbOrTx, phone: string) {
+  const rows = await db.select({ id: profiles.userId }).from(profiles).where(eq(profiles.phone, phone)).limit(1);
+  return rows.length > 0;
 }
 
 const selectRoleSchema = z.object({ role: z.enum(SELF_ASSIGNABLE_ROLES) });

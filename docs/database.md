@@ -99,5 +99,5 @@ npm test
 | `npm run db:check` | Validate migration history consistency |
 | `npm run db:seed` | Reset + seed development data (refuses non-local hosts / production) |
 | `npm run db:create-admin -- <email>` | Promote an existing user to admin (the only way to create admins) |
-| `npm run auth:generate` | Regenerate Better Auth tables after changing auth options/plugins |
+| `npm run auth:generate` | Regenerate Better Auth tables after changing auth options/plugins (uses `src/server/auth/cli-config.ts`) |
 | `npm run db:studio` | Drizzle Studio |
