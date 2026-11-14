@@ -39,14 +39,27 @@ export function clientIp(headers: Headers): string {
   return headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip")?.trim() || "unknown";
 }
 
+/**
+ * محدودیت جداگانه برای IP و شماره:
+ * - به ازای شماره سخت‌گیرانه (جلوگیری از spam پیامک و حدس کد برای یک حساب)
+ * - به ازای IP آسان‌تر، چون اپراتورهای موبایل کاربران زیادی را پشت یک IP مشترک (CGNAT) قرار می‌دهند
+ */
 export const authRateLimits = {
-  signIn: new FixedWindowRateLimiter(5, 60_000),
-  signUp: new FixedWindowRateLimiter(5, 5 * 60_000),
-  passwordReset: new FixedWindowRateLimiter(3, 5 * 60_000),
-  resendVerification: new FixedWindowRateLimiter(3, 5 * 60_000),
+  otpRequestIp: new FixedWindowRateLimiter(20, 10 * 60_000),
+  otpRequestPhone: new FixedWindowRateLimiter(5, 10 * 60_000),
+  /** علاوه بر سقف ۳ تلاش Better Auth برای هر کد */
+  otpVerifyIp: new FixedWindowRateLimiter(30, 10 * 60_000),
+  otpVerifyPhone: new FixedWindowRateLimiter(10, 10 * 60_000),
 };
 
-/** هر دو کلید (IP و ایمیل) باید مجاز باشند */
+/** مصرف هم‌زمان سهمیه IP و شماره؛ هر دو باید مجاز باشند */
+export function consumeOtpLimits(kind: "request" | "verify", ip: string, phone: string): boolean {
+  const ipOk = (kind === "request" ? authRateLimits.otpRequestIp : authRateLimits.otpVerifyIp).consume(`ip:${ip}`).allowed;
+  const phoneOk = (kind === "request" ? authRateLimits.otpRequestPhone : authRateLimits.otpVerifyPhone).consume(`phone:${phone}`).allowed;
+  return ipOk && phoneOk;
+}
+
+/** همه کلیدها (مثلاً IP و شماره) باید مجاز باشند */
 export function consumeAll(limiter: FixedWindowRateLimiter, keys: string[]) {
   let allowed = true;
   for (const key of keys) if (!limiter.consume(key).allowed) allowed = false;

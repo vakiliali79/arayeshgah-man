@@ -8,7 +8,6 @@ import { getCurrentSession } from "@/server/auth/current";
 export const metadata: Metadata = { title: "ورود" };
 
 const notices: Record<string, LoginNotice> = {
-  password_reset: { tone: "success", text: "رمز عبور شما تغییر کرد. با رمز جدید وارد شوید." },
   session_expired: { tone: "warning", text: "نشست شما منقضی شده است. لطفاً دوباره وارد شوید." },
 };
 
@@ -23,7 +22,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <>
       <header className="mb-8 space-y-2">
         <h1 className="text-2xl font-extrabold sm:text-3xl">خوش برگشتید</h1>
-        <p className="text-sm text-muted">برای مدیریت نوبت‌ها وارد حساب کاربری خود شوید.</p>
+        <p className="text-sm text-muted">شماره موبایل خود را وارد کنید تا کد ورود برایتان ارسال شود.</p>
       </header>
       <LoginForm next={nextPath} notice={typeof notice === "string" ? notices[notice] : undefined} />
     </>

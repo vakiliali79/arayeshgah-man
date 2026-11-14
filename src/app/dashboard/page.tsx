@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Avatar, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from "@/components/ui";
+import { Alert, Avatar, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from "@/components/ui";
 import { ROLE_META } from "@/config/roles";
 import { signOutAction } from "@/features/auth/actions";
 import { requireSession } from "@/server/auth/current";
@@ -8,9 +8,16 @@ export const metadata: Metadata = { title: "داشبورد" };
 export const dynamic = "force-dynamic";
 
 /** داشبورد موقت — داشبوردهای اختصاصی هر نقش در مراحل بعد ساخته می‌شوند */
-export default async function DashboardPage() {
+const WELCOME: Record<string, string> = {
+  registered: "ثبت‌نام شما با موفقیت انجام شد و وارد حساب خود شدید.",
+  login: "با موفقیت وارد شدید.",
+};
+
+export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const { user, profile } = await requireSession();
-  const name = profile.fullName ?? user.name ?? user.email;
+  const { welcome } = await searchParams;
+  const welcomeText = typeof welcome === "string" ? WELCOME[welcome] : undefined;
+  const name = profile.fullName ?? user.name;
   const role = profile.role;
 
   return (
@@ -23,7 +30,8 @@ export default async function DashboardPage() {
           </Button>
         </form>
       </header>
-      <main className="container-page py-10">
+      <main className="container-page space-y-4 py-10">
+        {welcomeText && <Alert tone="success" className="mx-auto max-w-lg">{welcomeText}</Alert>}
         <Card className="mx-auto max-w-lg">
           <CardHeader className="flex flex-row items-center gap-4">
             <Avatar name={name} />

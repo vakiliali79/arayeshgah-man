@@ -13,7 +13,23 @@ describe("database connection", () => {
 
   it("has all migrations applied", async () => {
     const res = await db.execute<{ n: number }>(sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
-    expect(res.rows[0]?.n).toBe(2);
+    expect(res.rows[0]?.n).toBe(4);
+  });
+
+  it("has the phone login columns with uniqueness and format constraints on users", async () => {
+    const cols = await db.execute<{ column_name: string }>(
+      sql`select column_name from information_schema.columns where table_name = 'users' and column_name like 'phone%' order by 1`,
+    );
+    expect(cols.rows.map((r) => r.column_name)).toEqual(["phone_number", "phone_number_verified"]);
+    const cons = await db.execute<{ conname: string }>(
+      sql`select conname from pg_constraint where conrelid = 'users'::regclass and conname like 'users_phone%' order by 1`,
+    );
+    expect(cons.rows.map((r) => r.conname)).toEqual(["users_phone_number_format", "users_phone_number_unique"]);
+    // ستون email (اجباری در مدل Better Auth) حفظ شده است
+    const email = await db.execute<{ is_nullable: string }>(
+      sql`select is_nullable from information_schema.columns where table_name = 'users' and column_name = 'email'`,
+    );
+    expect(email.rows[0]?.is_nullable).toBe("NO");
   });
 
   it("has btree_gist and the booking exclusion constraints", async () => {

@@ -1,116 +1,123 @@
 "use server";
 
-import { isAPIError } from "better-auth/api";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/config/routes";
 import { db } from "@/db";
 import { auth } from "@/server/auth";
-import { registerUser, VERIFY_EMAIL_CALLBACK } from "@/server/auth/registration";
-import { authRateLimits, clientIp, consumeAll } from "@/server/security/rate-limit";
+import { requestOtp, verifyLoginOtp, verifyRegistrationOtp, type OtpFailure } from "@/server/auth/phone-auth";
+import { toLocalPhone } from "@/server/otp/phone";
+import { clientIp, consumeOtpLimits } from "@/server/security/rate-limit";
 import { safeRedirectPath } from "./redirect";
 import {
   flattenErrors,
-  forgotPasswordSchema,
-  loginSchema,
-  registerSchema,
-  resetPasswordSchema,
-  type AuthFormState,
-  type ForgotPasswordInput,
-  type LoginInput,
-  type RegisterInput,
-  type ResetPasswordInput,
+  loginCodeSchema,
+  loginPhoneSchema,
+  registerCodeSchema,
+  registerPhoneSchema,
+  type OtpFormState,
 } from "./schemas";
 
-const TOO_MANY = "تعداد تلاش‌ها زیاد است. لطفاً چند دقیقه دیگر دوباره امتحان کنید.";
-const GENERIC = "خطایی رخ داد. لطفاً دوباره تلاش کنید.";
+const MESSAGES: Record<OtpFailure, string> = {
+  not_registered: "حسابی با این شماره موبایل وجود ندارد. ابتدا ثبت‌نام کنید.",
+  already_registered: "این شماره موبایل قبلاً ثبت شده است. از صفحه ورود وارد شوید.",
+  invalid_phone: "شماره موبایل معتبر نیست.",
+  invalid_code: "کد تأیید اشتباه است. دوباره تلاش کنید.",
+  expired: "کد تأیید منقضی شده یا معتبر نیست. کد جدید دریافت کنید.",
+  too_many_attempts: "تعداد تلاش‌های ناموفق زیاد بود. کد جدید دریافت کنید.",
+  rate_limited: "تعداد درخواست‌ها زیاد است. لطفاً چند دقیقه دیگر دوباره تلاش کنید.",
+  unavailable: "ورود با کد تأیید در حال حاضر در دسترس نیست.",
+  unknown: "خطایی رخ داد. لطفاً دوباره تلاش کنید.",
+};
 
-function errorCode(err: unknown): string | undefined {
-  return isAPIError(err) ? (err.body as { code?: string } | undefined)?.code : undefined;
-}
+const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 
 // ------------------------------------------------------------------ ورود
 
-export async function signInAction(
-  _prev: AuthFormState<LoginInput>,
-  formData: FormData,
-): Promise<AuthFormState<LoginInput>> {
-  const raw = { email: String(formData.get("email") ?? ""), password: String(formData.get("password") ?? "") };
-  const values = { email: raw.email };
-
-  const parsed = loginSchema.safeParse(raw);
-  if (!parsed.success) return { status: "error", fieldErrors: flattenErrors(parsed.error), values };
+/** ورود — مرحله ۱: دریافت شماره و ارسال کد */
+export async function requestLoginOtpAction(_prev: OtpFormState, fd: FormData): Promise<OtpFormState> {
+  const values = { phone: str(fd, "phone") };
+  const parsed = loginPhoneSchema.safeParse(values);
+  if (!parsed.success) return { step: "phone", status: "error", fieldErrors: flattenErrors(parsed.error), values };
+  const phone = parsed.data.phone;
 
   const h = await headers();
-  if (!consumeAll(authRateLimits.signIn, [`ip:${clientIp(h)}`, `email:${parsed.data.email}`])) {
-    return { status: "error", message: TOO_MANY, values };
+  if (!consumeOtpLimits("request", clientIp(h), phone)) {
+    return { step: "phone", status: "error", message: MESSAGES.rate_limited, values };
   }
+  const res = await requestOtp(auth, db, { phone, purpose: "login" }, h);
+  if (!res.ok) return { step: "phone", status: "error", message: MESSAGES[res.reason], values };
+  return { step: "code", status: "idle", values: { phone: toLocalPhone(phone) }, sentAt: Date.now() };
+}
 
-  try {
-    // nextCookies plugin کوکی نشست (httpOnly) را روی پاسخ Server Action ست می‌کند
-    await auth.api.signInEmail({
-      // اگر ایمیل تأیید نشده باشد، Better Auth لینک تازه‌ای با همین مقصد ارسال می‌کند
-      body: { email: parsed.data.email, password: parsed.data.password, callbackURL: VERIFY_EMAIL_CALLBACK },
-      headers: h,
-    });
-  } catch (err) {
-    const code = errorCode(err);
-    if (code === "EMAIL_NOT_VERIFIED") {
-      return {
-        status: "error",
-        message: "ایمیل شما هنوز تأیید نشده است. لینک تأیید جدیدی به ایمیلتان ارسال شد.",
-        values,
-      };
-    }
-    if (isAPIError(err) && err.status === "TOO_MANY_REQUESTS") return { status: "error", message: TOO_MANY, values };
-    if (!isAPIError(err)) console.error("[auth] sign-in failed", err);
-    // پیام یکسان برای ایمیل ناموجود و رمز اشتباه
-    return { status: "error", message: "ایمیل یا رمز عبور نادرست است.", values };
+/** ورود — مرحله ۲: بررسی کد و ساخت نشست */
+export async function verifyLoginOtpAction(_prev: OtpFormState, fd: FormData): Promise<OtpFormState> {
+  const values = { phone: str(fd, "phone") };
+  const parsed = loginCodeSchema.safeParse({ phone: values.phone, code: str(fd, "code") });
+  if (!parsed.success) return { step: "code", status: "error", fieldErrors: flattenErrors(parsed.error), values };
+  const { phone, code } = parsed.data;
+
+  const h = await headers();
+  if (!consumeOtpLimits("verify", clientIp(h), phone)) {
+    return { step: "code", status: "error", message: MESSAGES.rate_limited, values };
   }
+  // nextCookies plugin کوکی نشست (httpOnly) را روی پاسخ Server Action ست می‌کند
+  const res = await verifyLoginOtp(auth, db, { phone, code }, h);
+  if (!res.ok) return { step: res.reason === "not_registered" ? "phone" : "code", status: "error", message: MESSAGES[res.reason], values };
 
-  redirect(safeRedirectPath(formData.get("next")));
+  const next = safeRedirectPath(fd.get("next"), "");
+  redirect(next || `${ROUTES.dashboard}?welcome=login`);
 }
 
 // ------------------------------------------------------------------ ثبت‌نام
 
-export async function signUpAction(
-  _prev: AuthFormState<RegisterInput>,
-  formData: FormData,
-): Promise<AuthFormState<RegisterInput>> {
-  const raw = {
-    fullName: String(formData.get("fullName") ?? ""),
-    email: String(formData.get("email") ?? ""),
-    phone: String(formData.get("phone") ?? ""),
-    password: String(formData.get("password") ?? ""),
-    role: String(formData.get("role") ?? ""),
-    terms: formData.get("terms") ?? undefined,
-  };
-  // رمز عبور هرگز به کلاینت بازگردانده نمی‌شود
-  const values = { fullName: raw.fullName, email: raw.email, phone: raw.phone, role: raw.role };
-
-  // registerSchema نقش admin را رد می‌کند (فقط customer / stylist / salon_owner)
-  const parsed = registerSchema.safeParse(raw);
-  if (!parsed.success) return { status: "error", fieldErrors: flattenErrors(parsed.error), values };
+/** ثبت‌نام — مرحله ۱: نام، نوع حساب و شماره؛ ارسال کد */
+export async function requestRegisterOtpAction(_prev: OtpFormState, fd: FormData): Promise<OtpFormState> {
+  const values = { phone: str(fd, "phone"), fullName: str(fd, "fullName"), role: str(fd, "role") };
+  const parsed = registerPhoneSchema.safeParse({ ...values, terms: fd.get("terms") ?? undefined });
+  if (!parsed.success) return { step: "phone", status: "error", fieldErrors: flattenErrors(parsed.error), values };
+  const phone = parsed.data.phone;
 
   const h = await headers();
-  if (!consumeAll(authRateLimits.signUp, [`ip:${clientIp(h)}`])) return { status: "error", message: TOO_MANY, values };
-
-  const result = await registerUser(auth, db, parsed.data, h);
-  if (!result.ok) {
-    if (result.reason === "phone_taken") {
-      return { status: "error", fieldErrors: { phone: "این شماره موبایل قبلاً ثبت شده است" }, values };
-    }
-    if (result.reason === "weak_password") {
-      return { status: "error", fieldErrors: { password: "رمز عبور انتخابی مجاز نیست" }, values };
-    }
-    return { status: "error", message: "ثبت‌نام انجام نشد. لطفاً دوباره تلاش کنید.", values };
+  if (!consumeOtpLimits("request", clientIp(h), phone)) {
+    return { step: "phone", status: "error", message: MESSAGES.rate_limited, values };
   }
-
-  // برای ایمیل تکراری هم همین پیام نمایش داده می‌شود (عدم افشای وجود حساب)
+  const res = await requestOtp(auth, db, { phone, purpose: "register" }, h);
+  if (!res.ok) {
+    if (res.reason === "already_registered") {
+      return { step: "phone", status: "error", fieldErrors: { phone: MESSAGES.already_registered }, values };
+    }
+    return { step: "phone", status: "error", message: MESSAGES[res.reason], values };
+  }
   return {
-    status: "success",
-    message: "اگر این ایمیل قبلاً ثبت نشده باشد، حساب شما ساخته شد و لینک تأیید به آن ارسال شد. پس از تأیید وارد شوید.",
+    step: "code",
+    status: "idle",
+    values: { phone: toLocalPhone(phone), fullName: parsed.data.fullName, role: parsed.data.role },
+    sentAt: Date.now(),
   };
+}
+
+/** ثبت‌نام — مرحله ۲: بررسی کد، ساخت حساب و ورود */
+export async function verifyRegisterOtpAction(_prev: OtpFormState, fd: FormData): Promise<OtpFormState> {
+  const values = { phone: str(fd, "phone"), fullName: str(fd, "fullName"), role: str(fd, "role") };
+  // همه مقادیر مرحله قبل دوباره سمت سرور اعتبارسنجی می‌شوند (نقش admin رد می‌شود)
+  const parsed = registerCodeSchema.safeParse({ ...values, code: str(fd, "code") });
+  if (!parsed.success) {
+    const fieldErrors = flattenErrors(parsed.error);
+    const onlyCode = Object.keys(fieldErrors ?? {}).every((k) => k === "code");
+    return { step: onlyCode ? "code" : "phone", status: "error", fieldErrors, values };
+  }
+  const { phone, code, fullName, role } = parsed.data;
+
+  const h = await headers();
+  if (!consumeOtpLimits("verify", clientIp(h), phone)) {
+    return { step: "code", status: "error", message: MESSAGES.rate_limited, values };
+  }
+  const res = await verifyRegistrationOtp(auth, db, { phone, code, fullName, role }, h);
+  if (!res.ok) {
+    return { step: res.reason === "already_registered" ? "phone" : "code", status: "error", message: MESSAGES[res.reason], values };
+  }
+  redirect(`${ROUTES.dashboard}?welcome=registered`);
 }
 
 // ------------------------------------------------------------------ خروج
@@ -118,85 +125,8 @@ export async function signUpAction(
 export async function signOutAction() {
   try {
     await auth.api.signOut({ headers: await headers() });
-  } catch (err) {
-    if (!isAPIError(err)) console.error("[auth] sign-out failed", err);
+  } catch {
+    // نشست از قبل نامعتبر است
   }
   redirect(ROUTES.login);
-}
-
-// ------------------------------------------------------------------ فراموشی رمز
-
-const RESET_SENT =
-  "اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی رمز عبور به آن ارسال شد. لینک تا ۱ ساعت معتبر است.";
-
-export async function requestPasswordResetAction(
-  _prev: AuthFormState<ForgotPasswordInput>,
-  formData: FormData,
-): Promise<AuthFormState<ForgotPasswordInput>> {
-  const raw = { email: String(formData.get("email") ?? "") };
-  const parsed = forgotPasswordSchema.safeParse(raw);
-  if (!parsed.success) return { status: "error", fieldErrors: flattenErrors(parsed.error), values: raw };
-
-  const h = await headers();
-  if (!consumeAll(authRateLimits.passwordReset, [`ip:${clientIp(h)}`, `email:${parsed.data.email}`])) {
-    return { status: "error", message: TOO_MANY, values: raw };
-  }
-
-  try {
-    await auth.api.requestPasswordReset({ body: { email: parsed.data.email, redirectTo: ROUTES.resetPassword }, headers: h });
-  } catch (err) {
-    // خطا افشا نمی‌شود تا وجود حساب قابل تشخیص نباشد
-    console.error("[auth] password reset request failed", err);
-  }
-  return { status: "success", message: RESET_SENT };
-}
-
-export async function resetPasswordAction(
-  _prev: AuthFormState<ResetPasswordInput>,
-  formData: FormData,
-): Promise<AuthFormState<ResetPasswordInput>> {
-  const raw = {
-    token: String(formData.get("token") ?? ""),
-    password: String(formData.get("password") ?? ""),
-    confirmPassword: String(formData.get("confirmPassword") ?? ""),
-  };
-  const parsed = resetPasswordSchema.safeParse(raw);
-  if (!parsed.success) return { status: "error", fieldErrors: flattenErrors(parsed.error) };
-
-  const h = await headers();
-  if (!consumeAll(authRateLimits.passwordReset, [`ip:${clientIp(h)}`])) return { status: "error", message: TOO_MANY };
-
-  try {
-    // همه نشست‌های قبلی کاربر باطل می‌شوند (revokeSessionsOnPasswordReset)
-    await auth.api.resetPassword({ body: { token: parsed.data.token, newPassword: parsed.data.password }, headers: h });
-  } catch (err) {
-    if (errorCode(err) === "INVALID_TOKEN" || (isAPIError(err) && err.status === "BAD_REQUEST")) {
-      return { status: "error", message: "لینک بازیابی نامعتبر یا منقضی شده است. لطفاً دوباره درخواست دهید." };
-    }
-    console.error("[auth] password reset failed", err);
-    return { status: "error", message: GENERIC };
-  }
-  redirect(`${ROUTES.login}?notice=password_reset`);
-}
-
-// ------------------------------------------------------------------ ارسال مجدد تأیید ایمیل
-
-export async function resendVerificationAction(
-  _prev: AuthFormState<ForgotPasswordInput>,
-  formData: FormData,
-): Promise<AuthFormState<ForgotPasswordInput>> {
-  const raw = { email: String(formData.get("email") ?? "") };
-  const parsed = forgotPasswordSchema.safeParse(raw);
-  if (!parsed.success) return { status: "error", fieldErrors: flattenErrors(parsed.error), values: raw };
-
-  const h = await headers();
-  if (!consumeAll(authRateLimits.resendVerification, [`ip:${clientIp(h)}`, `email:${parsed.data.email}`])) {
-    return { status: "error", message: TOO_MANY, values: raw };
-  }
-  try {
-    await auth.api.sendVerificationEmail({ body: { email: parsed.data.email, callbackURL: VERIFY_EMAIL_CALLBACK }, headers: h });
-  } catch (err) {
-    if (!isAPIError(err)) console.error("[auth] resend verification failed", err);
-  }
-  return { status: "success", message: "اگر حساب تأییدنشده‌ای با این ایمیل وجود داشته باشد، لینک تأیید جدید ارسال شد." };
 }

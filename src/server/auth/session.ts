@@ -7,7 +7,7 @@ import type { Actor } from "./actor";
 import type { Auth } from "./better-auth";
 
 export interface SessionContext {
-  user: { id: string; name: string; email: string; emailVerified: boolean };
+  user: { id: string; name: string; phoneNumber: string | null };
   session: { id: string; expiresAt: Date };
   profile: Profile;
   /** نقش از جدول profiles (دیتابیس) — هرگز از کوکی یا کلاینت */
@@ -32,7 +32,7 @@ export async function getSessionContext(auth: Auth, db: DbOrTx, headers: Headers
   if (!profile) return null;
 
   return {
-    user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified },
+    user: { id: user.id, name: user.name, phoneNumber: (user as { phoneNumber?: string | null }).phoneNumber ?? null },
     session: { id: session.id, expiresAt: session.expiresAt },
     profile,
     actor: { userId: user.id, role: profile.role },

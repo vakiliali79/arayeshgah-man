@@ -1,10 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
+import { phoneNumber } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import * as schema from "@/db/schema";
-import type { Mailer } from "@/server/mail/mailer";
-import { passwordResetEmail, verificationEmail } from "@/server/mail/templates";
+import { OTP_LENGTH, resolveOtpConfig, type OtpConfig } from "@/server/otp/config";
+import { getRegistrationIntent } from "@/server/otp/intent";
+import { isCanonicalPhone, toLocalPhone } from "@/server/otp/phone";
+import { createOtpSender, type OtpSender } from "@/server/otp/sender";
 import { ensureProfile } from "@/server/profiles/service";
 
 export { AUTH_COOKIE_PREFIX } from "./constants";
@@ -14,12 +20,22 @@ import { AUTH_COOKIE_PREFIX } from "./constants";
 export const AUTH_TTL = {
   session: 60 * 60 * 24 * 14, // ۱۴ روز
   sessionUpdateAge: 60 * 60 * 24, // تمدید روزانه
-  emailVerification: 60 * 60 * 24, // ۲۴ ساعت
-  passwordReset: 60 * 60, // ۱ ساعت
+  otp: 5 * 60, // ۵ دقیقه
 } as const;
 
+/** هر کد فقط ۳ بار قابل امتحان است؛ پس از آن کد جدید لازم است */
+export const OTP_ALLOWED_ATTEMPTS = 3;
+
+/** آدرس جایگزین برای ستون email (اجباری در مدل Better Auth)؛ دامنه رزروشده .invalid هرگز قابل تحویل نیست */
+export const PLACEHOLDER_EMAIL_DOMAIN = "phone.arayeshgahman.invalid";
+
+const OTP_PATHS = new Set(["/phone-number/send-otp", "/phone-number/verify"]);
+
 export interface CreateAuthOptions {
-  mailer: Mailer;
+  /** پیش‌فرض: از env (resolveOtpConfig) */
+  otp?: OtpConfig;
+  /** پیش‌فرض: بر اساس otp.mode (createOtpSender) */
+  otpSender?: OtpSender;
   secret?: string;
   baseURL?: string;
   /** پیش‌فرض: فقط در production فعال (رفتار Better Auth) */
@@ -35,42 +51,46 @@ function resolveSecret(secret: string | undefined): string | undefined {
   return secret;
 }
 
+/** IP کلاینت برای allowlist حالت آزمایشی: فقط X-Real-IP که پروکسی معکوس بازنویسی می‌کند */
+export function allowlistIp(headers: Headers | undefined): string | null {
+  return headers?.get("x-real-ip")?.trim() || null;
+}
+
+type EndpointCtx = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
+
 /**
- * پیکربندی Better Auth.
- * - جداول users/sessions/accounts/verifications فقط توسط Better Auth مدیریت می‌شوند.
- * - نقش در جدول profiles است و هیچ endpoint عمومی Better Auth به آن دسترسی ندارد.
- * - ورودی‌های ثبت‌نام (مثل role) که در اسکیمای Better Auth نیستند نادیده گرفته می‌شوند.
+ * حالت static: Better Auth کد تصادفی را ذخیره می‌کند؛ همان رکورد (همان شماره، همان انقضا،
+ * شمارنده تلاش صفر) با کد ثابت جایگزین می‌شود تا همه حفاظت‌های داخلی Better Auth
+ * (انقضا، حداکثر تلاش، یک‌بارمصرف بودن، وابستگی به شماره) حفظ شوند.
+ * اگر ساختار داخلی Better Auth تغییر کند، به‌جای پذیرش ناامن خطا می‌دهد (fail closed).
  */
-export function createAuth(database: Database, options: CreateAuthOptions) {
-  const { mailer } = options;
+async function applyStaticCode(ctx: EndpointCtx | undefined, phone: string, generated: string, staticCode: string) {
+  if (!ctx) throw new Error("Static OTP requires an endpoint context");
+  const identifier = `phone-number-otp-${phone}`;
+  const stored = await ctx.context.internalAdapter.findVerificationValue(identifier);
+  if (!stored || stored.value !== `${generated}:0`) {
+    throw new Error("Static OTP: unexpected verification record (Better Auth internals changed)");
+  }
+  await ctx.context.internalAdapter.updateVerificationByIdentifier(identifier, { value: `${staticCode}:0` });
+}
+
+/**
+ * پیکربندی Better Auth — احراز هویت فقط با شماره موبایل و OTP.
+ * - ورود/ثبت‌نام ایمیلی و رمز عبور غیرفعال است.
+ * - نقش در جدول profiles است و هیچ endpoint عمومی Better Auth به آن دسترسی ندارد.
+ * - ساخت کاربر فقط داخل فرایند ثبت‌نام سمت سرور (RegistrationIntent) مجاز است.
+ */
+export function createAuth(database: Database, options: CreateAuthOptions = {}) {
+  const otp = options.otp ?? resolveOtpConfig();
+  const sender = options.otpSender ?? createOtpSender(otp);
+
   return betterAuth({
     appName: "ArayeshgahMan",
     secret: resolveSecret(options.secret ?? process.env.BETTER_AUTH_SECRET),
     baseURL: options.baseURL ?? process.env.BETTER_AUTH_URL,
     database: drizzleAdapter(database, { provider: "pg", schema, usePlural: true }),
 
-    emailAndPassword: {
-      enabled: true,
-      minPasswordLength: 8,
-      maxPasswordLength: 72,
-      requireEmailVerification: true,
-      autoSignIn: false,
-      resetPasswordTokenExpiresIn: AUTH_TTL.passwordReset,
-      revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ user, url }) => {
-        await mailer.send(passwordResetEmail(user.email, user.name, url));
-      },
-    },
-
-    emailVerification: {
-      sendOnSignUp: true,
-      sendOnSignIn: true, // ورود با ایمیل تأییدنشده یک لینک تازه ارسال می‌کند
-      autoSignInAfterVerification: true,
-      expiresIn: AUTH_TTL.emailVerification,
-      sendVerificationEmail: async ({ user, url }) => {
-        await mailer.send(verificationEmail(user.email, user.name, url));
-      },
-    },
+    emailAndPassword: { enabled: false },
 
     session: {
       expiresIn: AUTH_TTL.session,
@@ -82,16 +102,27 @@ export function createAuth(database: Database, options: CreateAuthOptions) {
       window: 60,
       max: 100,
       customRules: {
-        "/sign-in/email": { window: 60, max: 5 },
-        "/sign-up/email": { window: 300, max: 5 },
-        "/request-password-reset": { window: 300, max: 3 },
-        "/reset-password": { window: 300, max: 5 },
-        "/send-verification-email": { window: 300, max: 3 },
+        "/phone-number/send-otp": { window: 60, max: 3 },
+        "/phone-number/verify": { window: 60, max: 10 },
       },
     },
 
-    // سطح حمله را کوچک نگه می‌داریم: تغییر کاربر/ایمیل/حذف حساب از طریق API عمومی غیرفعال است
-    disabledPaths: ["/update-user", "/change-email", "/delete-user"],
+    // سطح حمله حداقلی: مسیرهای ایمیل/رمز عبور و تغییر اطلاعات کاربر غیرفعال‌اند
+    disabledPaths: [
+      "/update-user",
+      "/change-email",
+      "/delete-user",
+      "/change-password",
+      "/set-password",
+      "/sign-in/phone-number",
+      "/phone-number/request-password-reset",
+      "/phone-number/reset-password",
+      "/send-verification-email",
+      "/verify-email",
+      "/request-password-reset",
+      "/reset-password",
+      "/reset-password/:token",
+    ],
 
     advanced: {
       cookiePrefix: AUTH_COOKIE_PREFIX,
@@ -100,10 +131,45 @@ export function createAuth(database: Database, options: CreateAuthOptions) {
       database: { generateId: "uuid" },
     },
 
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (!OTP_PATHS.has(ctx.path)) return;
+
+        // حالت آزمایشی در production: فقط از IPهای مجاز
+        if (otp.mode === "static" && otp.allowedIps) {
+          const ip = allowlistIp(ctx.headers);
+          if (!ip || !otp.allowedIps.includes(ip)) {
+            throw new APIError("FORBIDDEN", { code: "OTP_NOT_AVAILABLE", message: "OTP login is not available" });
+          }
+        }
+
+        if (ctx.path === "/phone-number/verify") {
+          const body = (ctx.body ?? {}) as { phoneNumber?: unknown; updatePhoneNumber?: unknown };
+          if (body.updatePhoneNumber) {
+            throw new APIError("FORBIDDEN", { code: "PHONE_CHANGE_DISABLED", message: "Changing the phone number is not supported" });
+          }
+          // ورود فقط برای حساب موجود؛ ساخت حساب فقط در فرایند ثبت‌نام برنامه
+          if (typeof body.phoneNumber === "string" && !getRegistrationIntent(body.phoneNumber)) {
+            const [existing] = await database
+              .select({ id: schema.users.id })
+              .from(schema.users)
+              .where(eq(schema.users.phoneNumber, body.phoneNumber))
+              .limit(1);
+            if (!existing) throw new APIError("NOT_FOUND", { code: "ACCOUNT_NOT_FOUND", message: "No account for this phone number" });
+          }
+        }
+      }),
+    },
+
     databaseHooks: {
       user: {
         create: {
-          // هر کاربر جدید یک پروفایل «مشتری» می‌گیرد؛ نقش هرگز از ورودی کاربر خوانده نمی‌شود.
+          // لایه دوم دفاع: بدون نیت ثبت‌نام هیچ کاربری ساخته نمی‌شود
+          before: async (user) => {
+            const phone = (user as { phoneNumber?: string | null }).phoneNumber;
+            if (!phone || !getRegistrationIntent(phone)) return false;
+          },
+          // هر کاربر جدید یک پروفایل «مشتری» می‌گیرد؛ نقش هرگز از ورودی کاربر خوانده نمی‌شود
           after: async (user) => {
             await ensureProfile(database, { userId: user.id, fullName: user.name });
           },
@@ -111,8 +177,25 @@ export function createAuth(database: Database, options: CreateAuthOptions) {
       },
     },
 
-    // باید آخرین plugin باشد تا Server Actions بتوانند کوکی ست کنند
-    plugins: [nextCookies()],
+    plugins: [
+      phoneNumber({
+        otpLength: OTP_LENGTH,
+        expiresIn: AUTH_TTL.otp,
+        allowedAttempts: OTP_ALLOWED_ATTEMPTS,
+        // فقط شکل استاندارد ‎+989XXXXXXXXX‎؛ جلوگیری از ثبت تکراری با قالب متفاوت
+        phoneNumberValidator: (value) => isCanonicalPhone(value),
+        sendOTP: async ({ phoneNumber: phone, code }, ctx) => {
+          if (otp.mode === "static") await applyStaticCode(ctx as EndpointCtx | undefined, phone, code, otp.code);
+          else await sender.send({ phoneNumber: phone, code });
+        },
+        signUpOnVerification: {
+          getTempEmail: () => `${randomUUID()}@${PLACEHOLDER_EMAIL_DOMAIN}`,
+          getTempName: (phone) => getRegistrationIntent(phone)?.fullName ?? toLocalPhone(phone),
+        },
+      }),
+      // باید آخرین plugin باشد تا Server Actions بتوانند کوکی ست کنند
+      nextCookies(),
+    ],
   });
 }
 

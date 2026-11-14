@@ -10,13 +10,14 @@
 ```bash
 npm install
 cp .env.example .env.local          # DATABASE_URL و BETTER_AUTH_SECRET را تنظیم کنید (npx auth secret)
+                                    # ورود/ثبت‌نام: شماره موبایل + کد آزمایشی 1111 (AUTH_OTP_MODE=static)
 npm run db:migrate                  # ساخت جداول
-npm run db:seed                     # داده نمونه (رمز همه کاربران: Password123)
+npm run db:seed                     # داده نمونه (فقط دیتابیس محلی؛ ورود با شماره‌های نمونه و کد 1111)
 npm run dev                         # http://localhost:3000
 ```
 
 ساخت دیتابیس PostgreSQL محلی و جزئیات بیشتر در [docs/database.md](docs/database.md).
-در توسعه، ایمیل‌های تأیید و بازیابی رمز به‌صورت فایل در `.data/mail/` ذخیره می‌شوند.
+در توسعه هیچ پیامکی ارسال نمی‌شود؛ کد تأیید ثابت `1111` است (فقط محیط توسعه/تست).
 
 ## اسکریپت‌ها
 
@@ -28,7 +29,7 @@ npm run dev                         # http://localhost:3000
 | `npm run db:migrate` / `npm run db:seed` | مایگریشن و داده نمونه |
 | `npm test` | تست‌های واحد و یکپارچه با PostgreSQL (`.env.test.local` → `DATABASE_URL_TEST`) |
 | `npm run test:e2e` | تست end-to-end احراز هویت با مرورگر (پس از `npm run build`) |
-| `npm run db:create-admin -- <email>` | ارتقای کاربر به ادمین (تنها راه ساخت ادمین) |
+| `npm run db:create-admin -- <موبایل>` | ارتقای کاربر به ادمین (تنها راه ساخت ادمین) |
 
 ## ساختار پوشه‌ها
 
@@ -36,13 +37,13 @@ npm run dev                         # http://localhost:3000
 src/
   app/                 مسیرها (App Router)
     (marketing)/       صفحه اصلی
-    (auth)/            ورود، ثبت‌نام، فراموشی/بازیابی رمز، تأیید ایمیل
+    (auth)/            ورود و ثبت‌نام با موبایل + OTP
     api/auth/[...all]/ endpointهای Better Auth
     dashboard/         داشبورد (محافظت‌شده)
   components/          سیستم طراحی (ui)، layout، icons
   features/            ماژول‌های UI دامنه: auth، home
   db/                  اسکیمای Drizzle، اتصال و تایپ‌ها
-  server/              سرویس‌های سمت سرور: auth، bookings، salons، storage، mail، …
+  server/              سرویس‌های سمت سرور: auth، otp، bookings، salons، storage، …
   lib/                 utils و کلاینت Better Auth
   config/              نقش‌ها، مسیرها، اطلاعات سایت
   proxy.ts             هدایت مهمان‌ها از مسیرهای محافظت‌شده

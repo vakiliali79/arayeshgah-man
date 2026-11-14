@@ -19,7 +19,7 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
     <>
       <header className="mb-8 space-y-2">
         <h1 className="text-2xl font-extrabold sm:text-3xl">ساخت حساب کاربری</h1>
-        <p className="text-sm text-muted">در کمتر از یک دقیقه به جمع کاربران آرایشگاه من بپیوندید.</p>
+        <p className="text-sm text-muted">فقط با شماره موبایل و یک کد تأیید، در کمتر از یک دقیقه عضو شوید.</p>
       </header>
       <RegisterForm defaultRole={parseRole(role)} />
     </>
