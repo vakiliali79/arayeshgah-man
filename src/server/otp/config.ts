@@ -22,12 +22,35 @@ export type OtpConfig =
       code: string;
       /** فقط وقتی static در production صریحاً فعال شده باشد: درخواست‌ها فقط از این IPها پذیرفته می‌شوند */
       allowedIps: readonly string[] | null;
+      /**
+       * حالت تست موقت (AUTH_TEST_MODE=true) — احراز هویت واقعی نیست:
+       * هر شماره با کد ثابت وارد/ثبت‌نام می‌شود و testAdminPhone همیشه admin است.
+       */
+      testMode?: { adminPhone: string };
     }
   | { mode: "sms"; provider: string };
+
+/** کد ثابت حالت تست */
+export const TEST_MODE_OTP = "1111";
+/** شماره‌ای که در حالت تست همیشه نقش admin دارد */
+export const TEST_MODE_ADMIN_PHONE = "+989991797982";
+
+/** آیا حالت تست موقت صریحاً فعال است؟ فقط مقدار دقیق true/false پذیرفته می‌شود. */
+export function isAuthTestMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.AUTH_TEST_MODE?.trim().toLowerCase();
+  if (raw === undefined || raw === "" || raw === "false") return false;
+  if (raw === "true") return true;
+  throw new OtpConfigError("AUTH_TEST_MODE must be exactly true or false");
+}
 
 export const SMS_PROVIDERS = [] as const satisfies readonly string[];
 
 export function resolveOtpConfig(env: NodeJS.ProcessEnv = process.env): OtpConfig {
+  // حالت تست موقت: کد ثابت ۱۱۱۱ برای همه شماره‌ها، بدون محدودیت IP (فقط توسعه/تست، نه احراز هویت واقعی)
+  if (isAuthTestMode(env)) {
+    return { mode: "static", code: TEST_MODE_OTP, allowedIps: null, testMode: { adminPhone: TEST_MODE_ADMIN_PHONE } };
+  }
+
   const isProduction = env.NODE_ENV === "production";
   const mode = env.AUTH_OTP_MODE?.trim().toLowerCase() || (isProduction ? "" : "static");
 

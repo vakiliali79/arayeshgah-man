@@ -94,6 +94,27 @@ proxy_set_header X-Forwarded-For $remote_addr;
 
 Defense in depth: also restrict the whole test vhost in nginx (`allow 203.0.113.7; deny all;`) or with HTTP basic auth.
 
+### Temporary test mode (`AUTH_TEST_MODE=true`) — not real authentication
+
+For development and closed testing only. With `AUTH_TEST_MODE=true` (exactly `true`; any value other than
+`true`/`false` stops the app):
+
+* **every** mobile number signs in with the fixed code **`1111`** — no SMS, **no IP restriction**, in any `NODE_ENV`;
+* signing in with an unknown number creates the account automatically as **customer**; the registration form still
+  works (chosen non-admin role);
+* **`09991797982` is always `admin`**: the role is (re)applied after every successful code verification;
+* code expiry, single use, 3 attempts per code and all rate limits still apply;
+* `AUTH_OTP_MODE` / `AUTH_STATIC_OTP*` are ignored while it is on;
+* a "test mode — not real authentication" banner is shown on the sign-in/registration pages and a warning is logged at startup.
+
+> ⚠ Anyone who can reach the site can create accounts, and anyone who knows `09991797982` + `1111` is **admin**.
+> Use it only on a private/protected deployment (e.g. nginx `auth_basic` or `allow/deny`), never with real user data.
+
+Turning it off: set `AUTH_TEST_MODE=false` (or remove it), configure `AUTH_OTP_MODE`, rebuild/restart. Previous
+behaviour returns unchanged. Accounts created in test mode stay in the database — including the **admin role of
+`09991797982`**; demote it if needed:
+`UPDATE profiles SET role='customer' FROM users WHERE users.id = profiles.user_id AND users.phone_number = '+989991797982';`
+
 ### Adding a real SMS provider (e.g. Kavenegar, Melipayamak)
 
 1. Implement `OtpSender` in `src/server/otp/` (e.g. `kavenegar.ts`): `send({ phoneNumber, code })` calls the
@@ -115,7 +136,7 @@ No auth logic changes: Better Auth keeps generating, storing, expiring and check
 
 ## Environment variables
 
-`DATABASE_URL`, `BETTER_AUTH_SECRET` (≥ 32 chars in production), `BETTER_AUTH_URL`, `AUTH_OTP_MODE`,
+`DATABASE_URL`, `BETTER_AUTH_SECRET` (≥ 32 chars in production), `BETTER_AUTH_URL`, `AUTH_TEST_MODE`, `AUTH_OTP_MODE`,
 `AUTH_STATIC_OTP`, `AUTH_STATIC_OTP_ALLOW_IN_PRODUCTION`, `AUTH_STATIC_OTP_ALLOWED_IPS`, `SMS_PROVIDER` (future),
 `NEXT_PUBLIC_SITE_URL`, `UPLOAD_DIR`, `UPLOAD_MAX_BYTES`; tests: `DATABASE_URL_TEST` (in `.env.test.local`).
 
