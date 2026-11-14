@@ -162,4 +162,57 @@ export async function updateSalon(db: DbOrTx, actor: Actor, salonId: string, inp
   return row!;
 }
 
+/** آرایشگر درخواست عضویت در یک سالن فعال را ثبت می‌کند (با نشانی صفحه سالن) */
+export async function requestSalonMembership(db: Database, actor: Actor, input: unknown) {
+  const { salonSlug } = parseInput(z.object({ salonSlug: z.string().trim().toLowerCase().min(2).max(80) }).strict(), input);
+  return db.transaction(async (tx) => {
+    const [stylist] = await tx.select({ id: stylists.id }).from(stylists).where(eq(stylists.userId, actor.userId)).limit(1);
+    if (!stylist) throw new BusinessRuleError("PROFILE_REQUIRED", "Stylist profile required");
+    const [salon] = await tx.select().from(salons).where(and(eq(salons.slug, salonSlug), eq(salons.isActive, true))).limit(1);
+    if (!salon) throw new NotFoundError("Salon");
+    const [existing] = await tx.select().from(salonMembers).where(and(eq(salonMembers.salonId, salon.id), eq(salonMembers.userId, actor.userId))).for("update").limit(1);
+    if (existing) {
+      if (existing.status === "requested") throw new ConflictError("ALREADY_REQUESTED", "Request already sent");
+      if (existing.status !== "left") throw new ConflictError("ALREADY_MEMBER", "Already a member or invited");
+      const [row] = await tx
+        .update(salonMembers)
+        .set({ status: "requested", role: "stylist", permissions: DEFAULT_MEMBER_PERMISSIONS.stylist, invitedBy: null, joinedAt: null })
+        .where(eq(salonMembers.id, existing.id))
+        .returning();
+      return row!;
+    }
+    const [row] = await tx
+      .insert(salonMembers)
+      .values({ salonId: salon.id, userId: actor.userId, role: "stylist", status: "requested", permissions: DEFAULT_MEMBER_PERMISSIONS.stylist })
+      .returning();
+    return row!;
+  });
+}
+
+/** پاسخ سالن به درخواست عضویت آرایشگر (نیازمند manage_members) */
+export async function respondToMembershipRequest(db: Database, actor: Actor, input: { membershipId: string; approve: boolean }) {
+  return db.transaction(async (tx) => {
+    const [m] = await tx.select().from(salonMembers).where(eq(salonMembers.id, input.membershipId)).for("update").limit(1);
+    if (!m || m.status !== "requested") throw new NotFoundError("Membership request");
+    await assertSalonPermission(tx, actor, m.salonId, "manage_members");
+    const [row] = await tx
+      .update(salonMembers)
+      .set(input.approve ? { status: "active", joinedAt: new Date(), invitedBy: actor.userId } : { status: "left" })
+      .where(eq(salonMembers.id, m.id))
+      .returning();
+    return row!;
+  });
+}
+
+/** رد دعوت سالن توسط خود کاربر دعوت‌شده */
+export async function declineSalonInvitation(db: DbOrTx, actor: Actor, membershipId: string) {
+  const [row] = await db
+    .update(salonMembers)
+    .set({ status: "left" })
+    .where(and(eq(salonMembers.id, membershipId), eq(salonMembers.userId, actor.userId), eq(salonMembers.status, "invited")))
+    .returning();
+  if (!row) throw new NotFoundError("Invitation");
+  return row;
+}
+
 export { getSalonAccess };

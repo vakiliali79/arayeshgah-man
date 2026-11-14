@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { DbOrTx } from "@/db/client";
 import { stylists } from "@/db/schema";
 import type { Actor } from "../auth/actor";
 import { assertRole } from "../auth/permissions";
-import { ConflictError, PG, findPgError } from "../errors";
+import { ConflictError, NotFoundError, PG, findPgError } from "../errors";
 import { isValidTimeZone } from "../time";
 import { parseInput } from "../validation";
 
@@ -42,6 +43,33 @@ export async function createStylistProfile(db: DbOrTx, actor: Actor, input: unkn
     const pg = findPgError(err);
     if (pg?.code === PG.UNIQUE_VIOLATION && pg.constraint === "stylists_slug_unique") throw new ConflictError("SLUG_TAKEN", "This address is already taken");
     if (pg?.code === PG.UNIQUE_VIOLATION) throw new ConflictError("STYLIST_EXISTS", "Stylist profile already exists");
+    throw err;
+  }
+}
+
+const updateStylistSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(80).optional(),
+    slug: stylistSlugSchema.optional(),
+    bio: z.string().trim().max(1000).nullable().optional(),
+    specialties: z.array(z.string().trim().min(2).max(40)).max(10).optional(),
+    yearsExperience: z.number().int().min(0).max(70).nullable().optional(),
+    acceptsIndependentBookings: z.boolean().optional(),
+    city: z.string().trim().min(2).max(60).nullable().optional(),
+    district: z.string().trim().min(2).max(60).nullable().optional(),
+  })
+  .strict();
+
+/** ویرایش پروفایل حرفه‌ای خود آرایشگر (فعال/غیرفعال بودن فقط توسط ادمین) */
+export async function updateOwnStylistProfile(db: DbOrTx, actor: Actor, input: unknown) {
+  const data = parseInput(updateStylistSchema, input);
+  try {
+    const [row] = await db.update(stylists).set(data).where(eq(stylists.userId, actor.userId)).returning();
+    if (!row) throw new NotFoundError("Stylist");
+    return row;
+  } catch (err) {
+    const pg = findPgError(err);
+    if (pg?.code === PG.UNIQUE_VIOLATION) throw new ConflictError("SLUG_TAKEN", "This address is already taken");
     throw err;
   }
 }

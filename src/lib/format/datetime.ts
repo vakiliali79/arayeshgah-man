@@ -30,3 +30,25 @@ export function formatClock(t: string) {
 export const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
 /** ترتیب نمایش هفته ایرانی: شنبه تا جمعه (DOW پستگرس) */
 export const IRAN_WEEK_ORDER = [6, 0, 1, 2, 3, 4, 5];
+
+/**
+ * تاریخ و ساعت محلی (YYYY-MM-DD و HH:MM) در منطقه زمانی مشخص → رشته ISO با offset صحیح
+ * (با در نظر گرفتن ساعت تابستانی هر منطقه).
+ */
+export function zonedLocalToIso(date: string, time: string, tz = DEFAULT_TZ): string {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const guess = Date.UTC(y!, mo! - 1, d!, h!, mi!);
+  const offsetAt = (ms: number) => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        .formatToParts(new Date(ms))
+        .map((p) => [p.type, p.value]),
+    );
+    const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
+    return asUtc - ms;
+  };
+  let ts = guess - offsetAt(guess);
+  ts = guess - offsetAt(ts);
+  return new Date(ts).toISOString();
+}
