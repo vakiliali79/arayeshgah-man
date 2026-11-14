@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/* ============================================================
+   سیستم طراحی آرایشگاه من — توکن‌ها
+   پالت: آلو (Plum) لوکس + طلایی شامپاینی + عاجی گرم
+   ============================================================ */
+@theme {
+  --font-sans: var(--font-vazirmatn), ui-sans-serif, system-ui, sans-serif;
+
+  /* سطوح */
+  --color-background: #fbf8f4;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5efe8;
+  --color-foreground: #1d1519;
+  --color-muted: #6f6168;
+  --color-border: #ebe2d9;
+  --color-ring: #a8823f;
+
+  /* رنگ اصلی — آلو */
+  --color-primary-50: #fbf4f8;
+  --color-primary-100: #f5e6ef;
+  --color-primary-200: #e9cadc;
+  --color-primary-300: #d5a2bf;
+  --color-primary-400: #b86f97;
+  --color-primary-500: #974d76;
+  --color-primary-600: #7a3a5e;
+  --color-primary-700: #5f2c4a;
+  --color-primary-800: #47223a;
+  --color-primary-900: #2f1727;
+  --color-primary: var(--color-primary-700);
+  --color-primary-foreground: #fffaf6;
+
+  /* رنگ تأکید — طلایی */
+  --color-gold-50: #fcf8ef;
+  --color-gold-100: #f6edd6;
+  --color-gold-200: #ecd9aa;
+  --color-gold-300: #dfc07b;
+  --color-gold-400: #cba55a;
+  --color-gold-500: #a8823f;
+  --color-gold-600: #876630;
+  --color-gold: var(--color-gold-500);
+
+  /* وضعیت‌ها */
+  --color-success: #2f7d5b;
+  --color-success-soft: #e6f3ec;
+  --color-danger: #b4383f;
+  --color-danger-soft: #fbeaea;
+  --color-warning: #a86a12;
+  --color-warning-soft: #fdf2df;
+
+  /* شعاع و سایه */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --shadow-soft: 0 1px 2px rgb(47 23 39 / 0.04), 0 4px 16px -4px rgb(47 23 39 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(47 23 39 / 0.05), 0 16px 40px -12px rgb(47 23 39 / 0.18);
+  --shadow-gold: 0 8px 28px -10px rgb(168 130 63 / 0.55);
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01";
+  }
+  ::selection {
+    @apply bg-primary-200 text-primary-900;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  /* ورودی‌های عددی/ایمیل همیشه چپ‌چین خوانده شوند */
+  input[type="email"],
+  input[type="tel"],
+  input[dir="ltr"] {
+    text-align: left;
+  }
+}
+
+@utility text-gradient-gold {
+  background: linear-gradient(120deg, var(--color-gold-600), var(--color-gold-300) 50%, var(--color-gold-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-luxe {
+  background:
+    radial-gradient(60% 50% at 85% 0%, rgb(203 165 90 / 0.18), transparent 70%),
+    radial-gradient(50% 40% at 0% 30%, rgb(151 77 118 / 0.14), transparent 70%),
+    var(--color-background);
+}
+
+@utility container-page {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

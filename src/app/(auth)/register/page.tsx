@@ -1,0 +1,23 @@
+import type { Metadata } from "next";
+import { SELF_ASSIGNABLE_ROLES, type SelfAssignableRole } from "@/config/roles";
+import { RegisterForm } from "@/features/auth";
+
+export const metadata: Metadata = { title: "ثبت‌نام" };
+
+function parseRole(value: unknown): SelfAssignableRole | undefined {
+  return SELF_ASSIGNABLE_ROLES.find((r) => r === value);
+}
+
+export default async function RegisterPage({ searchParams }: PageProps<"/register">) {
+  const { role } = await searchParams;
+
+  return (
+    <>
+      <header className="mb-8 space-y-2">
+        <h1 className="text-2xl font-extrabold sm:text-3xl">ساخت حساب کاربری</h1>
+        <p className="text-sm text-muted">در کمتر از یک دقیقه به جمع کاربران آرایشگاه من بپیوندید.</p>
+      </header>
+      <RegisterForm defaultRole={parseRole(role)} />
+    </>
+  );
+}
